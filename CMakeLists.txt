@@ -19,6 +19,19 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 file(GLOB_RECURSE dotObjParser_SRC src/*.cpp src/*.h)
 
 ###############################################################################
+## Enable warnings
+###############################################################################
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  # using Clang
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-missing-braces -Wno-long-long \
+                       -pedantic")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-long-long -pedantic")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Wall /WX")
+endif()
+
+###############################################################################
 ## Target definitions
 ###############################################################################
 add_executable(objparser ${dotObjParser_SRC})
