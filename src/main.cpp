@@ -105,7 +105,10 @@ enum class ElementType : int8_t
     POINT = 8,            //< p
     LINE,                 //< l
     FACE,                 //< f
-    GROUP = 21            //< g
+    GROUP = 21,           //< g
+    SMOOTHING_GROUP,      //< s
+    MERGING_GROUP,        //< mg
+    OBJECT_NAME           //< o
 };
 
 // Some elements, such as faces and surfaces, may have a triplet of
@@ -135,46 +138,58 @@ struct DocumentStats
 class Group
 {
 public:
-    enum class GroupType : uint8_t
-    {
-        GROUP_NAME = 0,  //< g
-        SMOOTHING_GROUP, //< s
-        MERGING_GROUP,   //< mg
-        OBJECT_NAME      //< o
-    };
-
-    Group(std::string&& groupName, const size_t entityTableIdx, const uint32_t resolution,
-          const GroupType eGroupType) :
-        m_groupName(std::move(groupName)), m_groupNum(0), m_entityTableIdx(entityTableIdx),
-        m_resolution(resolution), m_eGroupType(eGroupType)
+    Group(std::string&& groupName, const size_t entityTableIdx, const ElementType eGroupType) :
+        m_groupName(std::move(groupName)), m_entityTableIdx(entityTableIdx),
+        m_resolution(0), m_eGroupType(eGroupType)
     {
     }
 
     Group(const size_t groupNum, const size_t entityTableIdx, const uint32_t resolution,
-          const GroupType eGroupType) :
+          const ElementType eGroupType) :
         m_groupNum(groupNum), m_entityTableIdx(entityTableIdx),
         m_resolution(resolution), m_eGroupType(eGroupType)
     {
     }
 
-    Group(const Group& refGrp) = default;
+    Group(const Group&) = default;
+    Group(Group&& refGrp) = default;
+    Group& operator=(const Group&) = default;
+    Group& operator=(Group&& refGrp) = default;
 
-    Group(Group&& refGrp) :
-        m_groupName(std::move(refGrp.m_groupName))
+    bool operator==(const Group& another)
     {
-        m_groupNum = refGrp.m_groupNum;
-        m_entityTableIdx = refGrp.m_entityTableIdx;
-        m_resolution = refGrp.m_resolution;
-        m_eGroupType = refGrp.m_eGroupType;
+        return (m_eGroupType == another.m_eGroupType);
+    }
+    Group& operator++(void)
+    {
+        ++m_entityTableOffset;
+
+        return (*this);
+    }
+
+    size_t getFirstIncludedEntityIndex(void) const
+    {
+        return (m_entityTableIdx);
+    }
+
+    size_t getIncludedEntityCount(void) const
+    {
+        return (m_entityTableOffset);
+    }
+
+    ElementType getType(void) const
+    {
+        return (m_eGroupType);
     }
 
 private:
 
-    std::string m_groupName; //< Used for group names and object name.
-    size_t m_groupNum;       //< Used for Smoothing groups and Merging groups.
-    size_t m_entityTableIdx; //< Index of the first entity included in this group.
-    uint32_t m_resolution;   //< Used only for Merging groups.
-    GroupType m_eGroupType;   //< Group type.
+    std::string m_groupName;         //< Used for group names and object name.
+    size_t m_groupNum = 0;           //< Used for Smoothing groups and Merging groups.
+    size_t m_entityTableIdx;         //< Index of the first entity included in this group.
+    size_t m_entityTableOffset = 0;  //< Count of entities included for this group.
+    uint32_t m_resolution;           //< Used only for Merging groups.
+    ElementType m_eGroupType;        //< Group type.
 };
 
 class ObjDatabase;
@@ -185,8 +200,6 @@ public:
         m_ID(0), m_type(entityType)
     {
     }
-
-    ObjEntity(ObjEntity&&) = default;
 
     size_t getID(void) const
     {
@@ -255,12 +268,36 @@ public:
         ObjEntity(ElementType::FACE),
         WithVerticesIndices(indexBufferIdx, indicesOffset, eParamsOrganization)
     {
+        // Determine if this face is a triangle.
+        switch(eParamsOrganization)
+        {
+        case VerticesIdxOrganization::VGEO:
+            m_isTriangle = (indicesOffset == 3);
+            break;
+
+        case VerticesIdxOrganization::VGEO_VTEXTURE:
+        case VerticesIdxOrganization::VGEO_VNORMAL:
+            m_isTriangle = (indicesOffset == 6);
+            break;
+
+        case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL:
+            m_isTriangle = (indicesOffset == 9);
+            break;
+
+        default: m_isTriangle = false;
+        };
     }
 
-    // TODO: Add IsTriangle/IsQuad function.
+    bool isTriangle(void) const
+    {
+        return (m_isTriangle);
+    }
 
     ObjEntityFace(const ObjEntityFace&) = default;
     ObjEntityFace(ObjEntityFace&&) = default;
+
+private:
+    bool m_isTriangle;
 };
 
 class ObjDatabase
@@ -277,8 +314,15 @@ public:
 
         default: break;
         };
-    }
 
+        std::for_each(m_currentGroupsIdx.cbegin(), m_currentGroupsIdx.cend(),
+                      [this](const size_t idx)
+                      {
+                          ++m_groupTable[idx];
+                      });
+
+        ++m_totalEntitiesCount;
+    }
     ObjEntity* getNextEntity(void) const
     {
         ObjEntity* pObjEnt = nullptr;
@@ -291,15 +335,46 @@ public:
 
         return (pObjEnt);
     }
-
-    void insertGroup(Group&& grp)
+    size_t getEntitiesCount(void) const
     {
-        m_groupTable.push_back(std::move(grp));
+        return (m_totalEntitiesCount);
     }
 
-    const std::vector<Group>& getGroups(void) const
+    Group getNextGroup(void) const
     {
-        return (m_groupTable);
+        const Group grp = std::move(m_groupTable.front());
+        m_groupTable.erase(m_groupTable.cbegin());
+
+        return (grp);
+    }
+    void insertGroup(Group&& grp)
+    {
+        if(grp.getType() != ElementType::OBJECT_NAME)
+        {
+            if(m_currentGroupsIdx.empty() == false)
+            {
+                if(grp.getType() == ElementType::GROUP)
+                {
+                    m_currentGroupsIdx.clear();
+                }
+                else
+                {
+                    const size_t idx = m_currentGroupsIdx.back();
+                    if(m_groupTable[idx].getType() != ElementType::GROUP)
+                    {
+                        m_currentGroupsIdx.pop_back();
+                    }
+                }
+            }
+
+            m_currentGroupsIdx.push_back(m_groupTable.size());
+        }
+
+        m_groupTable.push_back(std::move(grp));
+    }
+    size_t getGroupsCount(void) const
+    {
+        return (m_groupTable.size());
     }
 
     void sync(void)
@@ -318,8 +393,9 @@ public:
 private:
     mutable std::queue<ObjEntity*> m_entityTable;  //< Queue of pointers to all the entities.
     std::vector<ObjEntityFace> m_facesTable;       //< Vector of Face entities.
-    std::vector<Group> m_groupTable;               //< Vector of groups.
-
+    mutable std::vector<Group> m_groupTable;       //< Queue of groups.
+    std::vector<size_t> m_currentGroupsIdx;        //< Vector of current groups.
+    size_t m_totalEntitiesCount = 0;
     bool m_DBSynced = false;
 };
 
@@ -483,7 +559,22 @@ void parseGroup(const ElemIDResult_t& elementIDRes)
     std::string args(&*elementIDRes.second);
     removeSurroundingBlanks(args);
 
-    // TODO: Finish this function.
+    if(elementIDRes.first == ElementType::GROUP || elementIDRes.first == ElementType::OBJECT_NAME)
+    {
+        // Only a group name points to an entity index.
+        const size_t entityTableIdx = (elementIDRes.first == ElementType::GROUP) ?
+                                      gObjDB.getEntitiesCount() : 0;
+        Group grp(std::move(args), entityTableIdx, elementIDRes.first);
+        gObjDB.insertGroup(std::move(grp));
+    }
+    else
+        if(elementIDRes.first == ElementType::SMOOTHING_GROUP)
+        {
+            const size_t groupNum = std::stol(args);
+
+            Group grp(groupNum, gObjDB.getEntitiesCount(), 0, elementIDRes.first);
+            gObjDB.insertGroup(std::move(grp));
+        }
 }
 
 // ------------------------------------------------------------------
@@ -545,6 +636,9 @@ void parseElementDataArgs(const ElemIDResult_t& elementIDRes)
         break;
 
     case ElementType::GROUP:
+    case ElementType::SMOOTHING_GROUP:
+    case ElementType::MERGING_GROUP:
+    // case ElementType::OBJECT_NAME:
         parseGroup(elementIDRes);
         break;
 
@@ -559,19 +653,15 @@ void parseLine(const std::string& oneLine)
 
     if(elemTypeRes.first != ElementType::NONE)
     {
+        // Check if last element was a vertex (or its variants) and current element is not.
+        const std::array<ElementType, 4> arr = {ElementType::VERTEX, ElementType::VERTEX_TEXTURE,
+                                                ElementType::VERTEX_NORMAL,
+                                                ElementType::VERTEX_PARAM_SPACE};
         if((lastElement != elemTypeRes.first) &&
-           (lastElement == ElementType::VERTEX || lastElement == ElementType::VERTEX_NORMAL ||
-            lastElement == ElementType::VERTEX_PARAM_SPACE ||
-            lastElement == ElementType::VERTEX_TEXTURE)
-           &&
-           (elemTypeRes.first != ElementType::VERTEX &&
-            elemTypeRes.first != ElementType::VERTEX_NORMAL &&
-            elemTypeRes.first != ElementType::VERTEX_PARAM_SPACE &&
-            elemTypeRes.first != ElementType::VERTEX_TEXTURE
-           ))
+           (std::find(arr.cbegin(), arr.cend(), lastElement) != arr.cend()) &&
+           (std::find(arr.cbegin(), arr.cend(), elemTypeRes.first) == arr.cend()))
         {
-            // Reserve memory for the index buffer beforehand to increase insertion's
-            // loop performance.
+            // Pre-allocate memory for next wave of vertices indices.
             gIdxBuffer.reserve(gVBuffer.size() + gTexUVBuffer.size() + gNormalBuffer.size());
         }
 
@@ -584,7 +674,7 @@ void parseLine(const std::string& oneLine)
 
 int main(void)
 {
-    const char* objFilePath = "/home/dartzon/Downloads/StorecastTest/ducky.obj";
+    const char* objFilePath = "/home/dartzon/Downloads/StorecastTest/cube.obj";
     const std::unique_ptr<std::FILE, decltype(&fclose)> smtObjFile(fopen(objFilePath, "r"),
                                                                    &fclose);
     if(smtObjFile == nullptr)
@@ -611,35 +701,53 @@ int main(void)
     // printf("\tVertex count\t%lu\n", gDocStats.m_VertexCount);
     // printf("\tFace count\t%lu\n", gDocStats.m_FacesCount);
 
-    ObjEntity* pObj = nullptr;
+    // ObjEntity* pObj = nullptr;
 
-    while((pObj = gObjDB.getNextEntity()) != nullptr)
+    // while((pObj = gObjDB.getNextEntity()) != nullptr)
+    // {
+    //     ObjEntityFace& face = *static_cast<ObjEntityFace*>(pObj);
+
+    //     IndexBufferRange_t ibr = face.getVerticesIndices();
+
+    //     printf("f");
+
+    //     std::for_each(ibr.first, ibr.second,
+    //                   [&face](const auto& val)
+    //                   {
+    //                       switch(face.getVerticesIndicesOrganization())
+    //                       {
+    //                       case VerticesIdxOrganization::VGEO: printf(" %lu", val); break;
+
+    //                       case VerticesIdxOrganization::VGEO_VNORMAL: printf(" %lu//", val); break;
+
+    //                       case VerticesIdxOrganization::VGEO_VTEXTURE: printf(" %lu/", val); break;
+
+    //                       case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL: printf(" %lu/", val);
+    //                           break;
+
+    //                       default: break;
+    //                       }
+    //                   });
+
+    //     printf("\n");
+    // }
+
+
+    while(gObjDB.getGroupsCount() > 0)
     {
-        ObjEntityFace& face = *static_cast<ObjEntityFace*>(pObj);
+        Group grp = gObjDB.getNextGroup();
 
-        IndexBufferRange_t ibr = face.getVerticesIndices();
+        if(grp.getType() == ElementType::GROUP)
+        {
+            printf("g ");
+        }
+        else
+        {
+            printf("s ");
+        }
 
-        printf("f");
-
-        std::for_each(ibr.first, ibr.second,
-                      [&face](const auto& val)
-                      {
-                          switch(face.getVerticesIndicesOrganization())
-                          {
-                          case VerticesIdxOrganization::VGEO: printf(" %lu", val); break;
-
-                          case VerticesIdxOrganization::VGEO_VNORMAL: printf(" %lu//", val); break;
-
-                          case VerticesIdxOrganization::VGEO_VTEXTURE: printf(" %lu/", val); break;
-
-                          case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL: printf(" %lu/", val);
-                              break;
-
-                          default: break;
-                          }
-                      });
-
-        printf("\n");
+        printf(": %lu -> %lu\n", grp.getFirstIncludedEntityIndex(),
+              grp.getIncludedEntityCount());
     }
 
     return (0);
