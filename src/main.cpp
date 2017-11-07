@@ -32,10 +32,62 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <queue>
 #include <algorithm>
 #include <memory>
 #include <cassert>
 
+// ------------------------------------------------------------------
+//   TYPEDEFS
+// ------------------------------------------------------------------
+struct Coordinates3D;
+using Vertex_t = Coordinates3D;
+using VertexTexture_t = Coordinates3D;
+using VertexNormal_t = Coordinates3D;
+
+using VertexBuffer_t = std::vector<Vertex_t>;
+using TextureUVBuffer_t = std::vector<Vertex_t>;
+using NormalBuffer_t = std::vector<Vertex_t>;
+using IndexBuffer_t = std::vector<size_t>;
+using IndexBufferRange_t = std::pair<IndexBuffer_t::const_iterator, IndexBuffer_t::const_iterator>;
+
+template<size_t sz> using ObjKeywords_t = std::array<const char*, sz>;
+using KeywordsArray_t = ObjKeywords_t<35>;
+
+using StringIterator_t = std::string::iterator;
+using CStringIterator_t = std::string::const_iterator;
+using RStringIterator_t = std::string::reverse_iterator;
+
+// Element type + String iterator to its 1st parameter.
+// Since C++11 std::string is contiguous in memory so
+// it's safe to create one from &*iterator.
+enum class ElementType : int8_t;
+using ElemIDResult_t = std::pair<ElementType, CStringIterator_t>;
+
+class ObjEntity;
+using objectDB_t = std::vector<ObjEntity>;
+
+// ------------------------------------------------------------------
+//   GLOBALS
+// ------------------------------------------------------------------
+VertexBuffer_t gVBuffer;
+TextureUVBuffer_t gTexUVBuffer;
+NormalBuffer_t gNormalBuffer;
+IndexBuffer_t gIdxBuffer;
+
+constexpr KeywordsArray_t elementsKeywords = {"v", "vt", "vn", "vp",
+                                              "deg", "bmat", "step", "cstype",
+                                              "p", "l", "f", "curv", "curv2", "surf",
+                                              "parm", "trim", "hole", "scrv", "sp", "end",
+                                              "con",
+                                              "g", "s", "mg", "o",
+                                              "bevel", "c_interp", "d_interp", "lod",
+                                              "usemtl", "mtllib", "shadow_obj", "trace_obj",
+                                              "ctech", "stech"};
+
+// ------------------------------------------------------------------
+//   STRUCTS AND ENUMS
+// ------------------------------------------------------------------
 struct Coordinates3D
 {
     float m_x = 0.0f;
@@ -43,163 +95,496 @@ struct Coordinates3D
     float m_z = 0.0f;
 };
 
-using Vertex = Coordinates3D;
-using VertexTexture = Coordinates3D;
-using VertexNormal = Coordinates3D;
-
-using VertexBuffer = std::vector<Vertex>;
-using TextureUVBuffer = std::vector<Vertex>;
-using NormalBuffer = std::vector<Vertex>;
-using IndexBuffer = std::vector<uint32_t>;
-
-enum class ElementType
+enum class ElementType : int8_t
 {
-    NONE   = -1,
+    NONE = -1,
     VERTEX = 0,           //< v
     VERTEX_TEXTURE,       //< vt
     VERTEX_NORMAL,        //< vn
     VERTEX_PARAM_SPACE,   //< vp
     POINT = 8,            //< p
     LINE,                 //< l
-    FACE                  //< f
+    FACE,                 //< f
+    GROUP = 21            //< g
+};
+
+// Some elements, such as faces and surfaces, may have a triplet of
+// numbers that reference vertex data.These numbers are the reference
+// numbers for a geometric vertex, a texture vertex, and a vertex normal.
+enum class VerticesIdxOrganization : int8_t
+{
+    NONE = -1,             //< No indices.
+    VGEO = 0,              //< Geometric vertex index only.
+    VGEO_VTEXTURE,         //< Geometric vertex + Vertex texture.
+    VGEO_VNORMAL,          //< Geometric vertex + Vertex normal.
+    VGEO_VTEXTURE_VNORMAL  //< Geometric vertex + Vertex texture + Vertex normal.
+};
+
+struct DocumentStats
+{
+    size_t m_VertexCount = 0;
+    size_t m_FacesCount = 0;
+    size_t m_TriangleCount = 0;
+    size_t m_QuadCount = 0;
 };
 
 // ------------------------------------------------------------------
-//   GLOBALS
-// ------------------------------------------------------------------
-VertexBuffer gVBuffer;
-TextureUVBuffer gTexUVBuffer;
-NormalBuffer gNormalBuffer;
-
-IndexBuffer gIdxBuffer;
-
-const std::array<const char*, 35> elementsKeywords = {"v", "vt", "vn", "vp",
-                                                     "deg", "bmat", "step", "cstype",
-                                                     "p", "l", "f", "curv", "curv2", "surf",
-                                                     "parm", "trim", "hole", "scrv", "sp", "end",
-                                                     "con",
-                                                     "g", "s", "mg", "o",
-                                                     "bevel", "c_interp", "d_interp", "lod",
-                                                     "usemtl", "mtllib", "shadow_obj", "trace_obj",
-                                                     "ctech", "stech"};
-
+//   CLASSES
 // ------------------------------------------------------------------
 
-void parseVertex(const ElementType elemType, const char* argsList)
+class Group
 {
-    Vertex v;
-
-    char* strEnd;
-    v.m_x = strtof(argsList, &strEnd);
-    argsList = strEnd;
-    v.m_y = strtof(argsList, &strEnd);
-
-    // Texture vertices usually have only 2 coordinates.
-    if(argsList != strEnd)
+public:
+    enum class GroupType : uint8_t
     {
-        argsList = strEnd;
-        v.m_z = strtof(argsList, &strEnd);
+        GROUP_NAME = 0,  //< g
+        SMOOTHING_GROUP, //< s
+        MERGING_GROUP,   //< mg
+        OBJECT_NAME      //< o
+    };
+
+    Group(std::string&& groupName, const size_t entityTableIdx, const uint32_t resolution,
+          const GroupType eGroupType) :
+        m_groupName(std::move(groupName)), m_groupNum(0), m_entityTableIdx(entityTableIdx),
+        m_resolution(resolution), m_eGroupType(eGroupType)
+    {
     }
 
-    printf("%f %f %f\n", v.m_x, v.m_y, v.m_z);
-
-    switch(elemType)
+    Group(const size_t groupNum, const size_t entityTableIdx, const uint32_t resolution,
+          const GroupType eGroupType) :
+        m_groupNum(groupNum), m_entityTableIdx(entityTableIdx),
+        m_resolution(resolution), m_eGroupType(eGroupType)
     {
-    case ElementType::VERTEX : gVBuffer.push_back(v); break;
-    case ElementType::VERTEX_TEXTURE : gTexUVBuffer.push_back(v); break;
-    case ElementType::VERTEX_NORMAL : gNormalBuffer.push_back(v); break;
+    }
+
+    Group(const Group& refGrp) = default;
+
+    Group(Group&& refGrp) :
+        m_groupName(std::move(refGrp.m_groupName))
+    {
+        m_groupNum = refGrp.m_groupNum;
+        m_entityTableIdx = refGrp.m_entityTableIdx;
+        m_resolution = refGrp.m_resolution;
+        m_eGroupType = refGrp.m_eGroupType;
+    }
+
+private:
+
+    std::string m_groupName; //< Used for group names and object name.
+    size_t m_groupNum;       //< Used for Smoothing groups and Merging groups.
+    size_t m_entityTableIdx; //< Index of the first entity included in this group.
+    uint32_t m_resolution;   //< Used only for Merging groups.
+    GroupType m_eGroupType;   //< Group type.
+};
+
+class ObjDatabase;
+class ObjEntity
+{
+public:
+    ObjEntity(const ElementType entityType) :
+        m_ID(0), m_type(entityType)
+    {
+    }
+
+    ObjEntity(ObjEntity&&) = default;
+
+    size_t getID(void) const
+    {
+        return (m_ID);
+    }
+
+    ElementType getType(void) const
+    {
+        return (m_type);
+    }
+
+private:
+    size_t m_ID;
+    ElementType m_type;
+
+    void setID(const size_t ID)
+    {
+        m_ID = ID;
+    }
+
+    friend ObjDatabase;
+};
+
+class WithVerticesIndices
+{
+public:
+    WithVerticesIndices(const size_t indexBufferIdx, const size_t indicesOffset,
+                        const VerticesIdxOrganization eParamsOrganization) :
+        m_indexBufferIdx(indexBufferIdx), m_indicesOffset(indicesOffset),
+        m_eParamsOrganization(eParamsOrganization)
+    {
+    }
+
+    IndexBufferRange_t getVerticesIndices(void) const
+    {
+        IndexBufferRange_t res = std::make_pair(gIdxBuffer.cbegin() + m_indexBufferIdx,
+                                                gIdxBuffer.cbegin() + m_indexBufferIdx +
+                                                m_indicesOffset);
+        return (res);
+    }
+
+    size_t getIndexBufferStart(void) const
+    {
+        return (m_indexBufferIdx);
+    }
+    size_t getIndicesCount(void) const
+    {
+        return (m_indicesOffset);
+    }
+    VerticesIdxOrganization getVerticesIndicesOrganization(void) const
+    {
+        return (m_eParamsOrganization);
+    }
+
+private:
+    size_t m_indexBufferIdx;                        //< Start index in the index buffer.
+    size_t m_indicesOffset;                         //< Count of indices for this face.
+    VerticesIdxOrganization m_eParamsOrganization;  //< Describes how indices are organized.
+};
+
+class ObjEntityFace : public ObjEntity, public WithVerticesIndices
+{
+public:
+    ObjEntityFace(const size_t indexBufferIdx, const size_t indicesOffset,
+                  const VerticesIdxOrganization eParamsOrganization) :
+        ObjEntity(ElementType::FACE),
+        WithVerticesIndices(indexBufferIdx, indicesOffset, eParamsOrganization)
+    {
+    }
+
+    // TODO: Add IsTriangle/IsQuad function.
+
+    ObjEntityFace(const ObjEntityFace&) = default;
+    ObjEntityFace(ObjEntityFace&&) = default;
+};
+
+class ObjDatabase
+{
+public:
+    void insertEntity(ObjEntity& obj)
+    {
+        switch(obj.getType())
+        {
+        case ElementType::FACE:
+            obj.setID(m_facesTable.size() + 1);
+            m_facesTable.push_back(static_cast<ObjEntityFace&&>(obj));
+            break;
+
+        default: break;
+        };
+    }
+
+    ObjEntity* getNextEntity(void) const
+    {
+        ObjEntity* pObjEnt = nullptr;
+
+        if(m_entityTable.empty() == false)
+        {
+            pObjEnt = m_entityTable.front();
+            m_entityTable.pop();
+        }
+
+        return (pObjEnt);
+    }
+
+    void insertGroup(Group&& grp)
+    {
+        m_groupTable.push_back(std::move(grp));
+    }
+
+    const std::vector<Group>& getGroups(void) const
+    {
+        return (m_groupTable);
+    }
+
+    void sync(void)
+    {
+        if(m_DBSynced == false)
+        {
+            for(ObjEntityFace& face : m_facesTable)
+            {
+                m_entityTable.push(&face);
+            }
+
+            m_DBSynced = true;
+        }
+    }
+
+private:
+    mutable std::queue<ObjEntity*> m_entityTable;  //< Queue of pointers to all the entities.
+    std::vector<ObjEntityFace> m_facesTable;       //< Vector of Face entities.
+    std::vector<Group> m_groupTable;               //< Vector of groups.
+
+    bool m_DBSynced = false;
+};
+
+// ------------------------------------------------------------------
+//   GLOBALS 2
+// ------------------------------------------------------------------
+DocumentStats gDocStats;
+
+ObjDatabase gObjDB;
+
+// ------------------------------------------------------------------
+
+// ------------------------------------------------------------------
+//   UTILS
+// ------------------------------------------------------------------
+
+void removeTrailingBlanks(std::string& str)
+{
+    // Look for the first non blank character starting from the end of the string.
+    RStringIterator_t strRItr = std::find_if_not(str.rbegin(), str.rend(), [](const char c)
+                                               {
+                                                   return (isspace(c) != 0);
+                                               });
+
+    if(strRItr != str.rend())
+    {
+        // Resize the string to remove blanks.
+        const size_t sz = std::distance(str.rbegin(), strRItr);
+        str.resize(str.size() - sz);
+    }
+}
+
+void removeSurroundingBlanks(std::string& str)
+{
+    // Look for the first non blank character.
+    CStringIterator_t strItr = std::find_if(str.cbegin(), str.cend(), [](const char c)
+                                            {
+                                                return (isblank(c) == 0);
+                                            });
+    if(strItr != str.end())
+    {
+        str.erase(str.cbegin(), strItr);
+    }
+
+    // Look for the first non blank character starting from the end of the string.
+    RStringIterator_t strRItr = std::find_if_not(str.rbegin(), str.rend(), [](const char c)
+                                                 {
+                                                     return (isspace(c) != 0);
+                                                 });
+    if(strRItr != str.rend())
+    {
+        // Resize the string to remove blanks.
+        const size_t sz = std::distance(str.rbegin(), strRItr);
+        str.resize(str.size() - sz);
+    }
+}
+
+// ------------------------------------------------------------------
+
+void parseVertex(const ElemIDResult_t& elementIDRes)
+{
+    std::string args(&*elementIDRes.second);
+    removeSurroundingBlanks(args);
+
+    size_t processedCharsCount = 0;
+
+    Vertex_t vtx;
+
+    vtx.m_x = std::stof(args, &processedCharsCount);
+    args.erase(args.cbegin(), args.cbegin() + processedCharsCount);
+
+    vtx.m_y = std::stof(args, &processedCharsCount);
+    args.erase(args.cbegin(), args.cbegin() + processedCharsCount);
+
+    // Check if the 3rd parameter exists.
+    if(args.size() > 0)
+    {
+        vtx.m_z = std::stof(args, &processedCharsCount);
+    }
+
+    switch(elementIDRes.first)
+    {
+    case ElementType::VERTEX : gVBuffer.push_back(vtx); gDocStats.m_VertexCount++; break;
+    case ElementType::VERTEX_TEXTURE : gTexUVBuffer.push_back(vtx); break;
+    case ElementType::VERTEX_NORMAL : gNormalBuffer.push_back(vtx); break;
 
     default: break;
     }
 }
 
-void parseFace(const char* argsList)
+// ------------------------------------------------------------------
+
+// Analyze the first vertices indices triplet.
+VerticesIdxOrganization getIndicesOrganization(const std::string& args)
 {
-    bool hasTextureVertex = false;
-    bool hasVertexNormal = false;
-
-    const std::string args(argsList);
-
-    const size_t countSlashes = std::count(args.cbegin(), args.cend(), '/');
-    hasTextureVertex = (countSlashes == 1);
-    hasVertexNormal = (countSlashes == 2);
+    // Initialize to no slashes found. So, no texture vertices, no normal vertices.
+    VerticesIdxOrganization vtxIdxOrg = VerticesIdxOrganization::VGEO;
 
     const size_t doubleSlashesPos = args.find("//");
-    hasTextureVertex = (doubleSlashesPos == std::string::npos);
+    if(doubleSlashesPos != std::string::npos)
+    {
+        // 2 contiguous slashes found, geometric vertex index and vertex normal index available.
+        vtxIdxOrg = VerticesIdxOrganization::VGEO_VNORMAL;
+    }
+    else
+    {
+        CStringIterator_t firstBlankItr = std::find_if(args.cbegin(), args.cend(),
+                                                 [](const char c)
+                                                 {
+                                                     return (isblank(c) != 0);
+                                                 });
+        const size_t countSlashes = std::count(args.cbegin(), firstBlankItr, '/');
 
-    char* strEnd = nullptr;
+        switch(countSlashes)
+        {
+        case 1 :
+            // 1 slash found, geometric vertex index and vertex texture index available.
+            vtxIdxOrg = VerticesIdxOrganization::VGEO_VTEXTURE;
+            break;
+
+        case 2 :
+            // 2 separate slashes found, all indices available.
+            vtxIdxOrg = VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL;
+            break;
+        }
+    }
+
+    return (vtxIdxOrg);
 }
 
-using ElemIDResult = std::pair<ElementType, std::string::const_iterator>;
-ElemIDResult getElementType(const std::string& oneLine)
+void parseFace(const ElemIDResult_t& elementIDRes)
 {
-    using StrItr = std::string::const_iterator;
+    std::string args(&*elementIDRes.second);
+    removeSurroundingBlanks(args);
 
-    // Skip white spaces at the beginning of the line.
-    StrItr lineStartItr = std::find_if(oneLine.cbegin(), oneLine.cend(),
-                                           [](const char c)
-                                           {
-                                               return (isblank(c) == 0);
-                                           });
+    // Get the organization of the vertices' indices triplets.
+    const VerticesIdxOrganization vtxIdxOrg = getIndicesOrganization(args);
 
-    // Skip this line if it is empty or is a comment line.
+    // Remove all the slashes and keep only numbers.
+    std::replace(args.begin(), args.end(), '/', ' ');
+
+    size_t idxCount = 0;
+    size_t pos = 0;
+
+    while(pos < args.size())
+    {
+        args.erase(args.cbegin(), args.cbegin() + pos);
+        const size_t vtxIdx = std::stol(args, &pos);
+        gIdxBuffer.push_back(vtxIdx);
+        ++idxCount;
+    }
+
+    gDocStats.m_FacesCount++;
+
+    ObjEntityFace objFace(gIdxBuffer.size() - idxCount, idxCount, vtxIdxOrg);
+    gObjDB.insertEntity(objFace);
+}
+
+void parseGroup(const ElemIDResult_t& elementIDRes)
+{
+    std::string args(&*elementIDRes.second);
+    removeSurroundingBlanks(args);
+
+    // TODO: Finish this function.
+}
+
+// ------------------------------------------------------------------
+
+ElemIDResult_t getElementType(const std::string& oneLine)
+{
+    // Skip white spaces at the beginning of the line (Only \t & ' ').
+    CStringIterator_t lineStartItr = std::find_if(oneLine.cbegin(), oneLine.cend(),
+                                               [](const char c)
+                                               {
+                                                   return (isblank(c) == 0);
+                                               });
+
+    // Skip this line if it is empty or is a comment line (\t, \f, \n, \r, \v,  ' ').
     if((isspace(*lineStartItr) != 0) || (*lineStartItr == '#'))
     {
         return (std::make_pair(ElementType::NONE, oneLine.cend()));
     }
 
-    // Go to the next white space.
-    StrItr blankAfterTokenItr = std::find_if(lineStartItr, oneLine.cend(), &isblank);
+    // Go to the next white space (Only \t & ' ').
+    CStringIterator_t blankAfterTokenItr = std::find_if(lineStartItr, oneLine.cend(), &isblank);
 
     // Construct our element token.
     const std::string elementToken(lineStartItr, blankAfterTokenItr);
 
     // Find the element token in the keywords list.
-    using KeywordsItr = std::array<const char*, 35>::const_iterator;
-    KeywordsItr keyItr = std::find_if(elementsKeywords.cbegin(), elementsKeywords.cend(),
-                                      [&elementToken](const char* keyword)
-                                      {
-                                          return (elementToken.compare(keyword) == 0);
-                                      });
+    const auto keywordMatch = [&elementToken](const char* keyword)
+                              {
+                                  return (elementToken.compare(keyword) == 0);
+                              };
+    KeywordsArray_t::const_iterator keyItr = std::find_if(elementsKeywords.cbegin(),
+                                                          elementsKeywords.cend(),
+                                                          keywordMatch);
     if(keyItr == elementsKeywords.cend())
     {
         return (std::make_pair(ElementType::NONE, oneLine.cend()));
     }
 
     // Get the index of the identified element type and convert it to its enum correspondence.
-    using DiffIdx = std::array<const char*, 35>::difference_type;
-    const DiffIdx elementTypeIdx = std::distance(elementsKeywords.cbegin(), keyItr);
+    const KeywordsArray_t::difference_type elementTypeIdx = std::distance(elementsKeywords.cbegin(),
+                                                                          keyItr);
 
     return (std::make_pair(static_cast<ElementType>(elementTypeIdx), blankAfterTokenItr));
 }
 
-void parseElementDataArgs(const ElementType elemType, const char* argsList)
+void parseElementDataArgs(const ElemIDResult_t& elementIDRes)
 {
-    switch(elemType)
+    switch(elementIDRes.first)
     {
     case ElementType::VERTEX:
     case ElementType::VERTEX_TEXTURE:
     case ElementType::VERTEX_NORMAL:
     case ElementType::VERTEX_PARAM_SPACE:
-        parseVertex(elemType, argsList);
+        parseVertex(elementIDRes);
         break;
+
+    case ElementType::FACE:
+        parseFace(elementIDRes);
+        break;
+
+    case ElementType::GROUP:
+        parseGroup(elementIDRes);
+        break;
+
+    default: break;
     }
 }
 
+ElementType lastElement = ElementType::NONE;
 void parseLine(const std::string& oneLine)
 {
-    const ElemIDResult elemTypeRes = getElementType(oneLine);
+    ElemIDResult_t elemTypeRes = getElementType(oneLine);
 
     if(elemTypeRes.first != ElementType::NONE)
     {
+        if((lastElement != elemTypeRes.first) &&
+           (lastElement == ElementType::VERTEX || lastElement == ElementType::VERTEX_NORMAL ||
+            lastElement == ElementType::VERTEX_PARAM_SPACE ||
+            lastElement == ElementType::VERTEX_TEXTURE)
+           &&
+           (elemTypeRes.first != ElementType::VERTEX &&
+            elemTypeRes.first != ElementType::VERTEX_NORMAL &&
+            elemTypeRes.first != ElementType::VERTEX_PARAM_SPACE &&
+            elemTypeRes.first != ElementType::VERTEX_TEXTURE
+           ))
+        {
+            // Reserve memory for the index buffer beforehand to increase insertion's
+            // loop performance.
+            gIdxBuffer.reserve(gVBuffer.size() + gTexUVBuffer.size() + gNormalBuffer.size());
+        }
+
+        lastElement = elemTypeRes.first;
+
         // Parse the arguments of each element.
-        parseElementDataArgs(elemTypeRes.first, &*(elemTypeRes.second));
+        parseElementDataArgs(elemTypeRes);
     }
 }
 
 int main(void)
 {
-    const char* objFilePath = "/home/dartzon/Downloads/StorecastTest/cube.obj";
+    const char* objFilePath = "/home/dartzon/Downloads/StorecastTest/ducky.obj";
     const std::unique_ptr<std::FILE, decltype(&fclose)> smtObjFile(fopen(objFilePath, "r"),
                                                                    &fclose);
     if(smtObjFile == nullptr)
@@ -220,7 +605,42 @@ int main(void)
         parseLine(oneLine);
     }
 
-    // printf(">>> %d\n", vxx);
+    gObjDB.sync(); //< IMPORTANT!!!!
+
+    // printf("Information\n");
+    // printf("\tVertex count\t%lu\n", gDocStats.m_VertexCount);
+    // printf("\tFace count\t%lu\n", gDocStats.m_FacesCount);
+
+    ObjEntity* pObj = nullptr;
+
+    while((pObj = gObjDB.getNextEntity()) != nullptr)
+    {
+        ObjEntityFace& face = *static_cast<ObjEntityFace*>(pObj);
+
+        IndexBufferRange_t ibr = face.getVerticesIndices();
+
+        printf("f");
+
+        std::for_each(ibr.first, ibr.second,
+                      [&face](const auto& val)
+                      {
+                          switch(face.getVerticesIndicesOrganization())
+                          {
+                          case VerticesIdxOrganization::VGEO: printf(" %lu", val); break;
+
+                          case VerticesIdxOrganization::VGEO_VNORMAL: printf(" %lu//", val); break;
+
+                          case VerticesIdxOrganization::VGEO_VTEXTURE: printf(" %lu/", val); break;
+
+                          case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL: printf(" %lu/", val);
+                              break;
+
+                          default: break;
+                          }
+                      });
+
+        printf("\n");
+    }
 
     return (0);
 }
