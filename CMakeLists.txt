@@ -36,6 +36,6 @@ endif()
 ###############################################################################
 add_executable(objparser ${dotObjParser_SRC})
 
-target_compile_options(objparser PUBLIC -pthread -std=c++14)
+target_compile_options(objparser PUBLIC -std=c++14 $<$<CONFIG:DEBUG>:-DOBJ_DEBUG>)
 
 target_include_directories(objparser PUBLIC src/)
