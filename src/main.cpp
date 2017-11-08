@@ -35,37 +35,11 @@
 #include <queue>
 #include <algorithm>
 #include <memory>
-#include <cassert>
-
-// ------------------------------------------------------------------
-//   TYPEDEFS
-// ------------------------------------------------------------------
-struct Coordinates3D;
-using Vertex_t = Coordinates3D;
-using VertexTexture_t = Coordinates3D;
-using VertexNormal_t = Coordinates3D;
-
-using VertexBuffer_t = std::vector<Vertex_t>;
-using TextureUVBuffer_t = std::vector<Vertex_t>;
-using NormalBuffer_t = std::vector<Vertex_t>;
-using IndexBuffer_t = std::vector<size_t>;
-using IndexBufferRange_t = std::pair<IndexBuffer_t::const_iterator, IndexBuffer_t::const_iterator>;
-
-template<size_t sz> using ObjKeywords_t = std::array<const char*, sz>;
-using KeywordsArray_t = ObjKeywords_t<35>;
-
-using StringIterator_t = std::string::iterator;
-using CStringIterator_t = std::string::const_iterator;
-using RStringIterator_t = std::string::reverse_iterator;
-
-// Element type + String iterator to its 1st parameter.
-// Since C++11 std::string is contiguous in memory so
-// it's safe to create one from &*iterator.
-enum class ElementType : int8_t;
-using ElemIDResult_t = std::pair<ElementType, CStringIterator_t>;
-
-class ObjEntity;
-using objectDB_t = std::vector<ObjEntity>;
+#include "Utils.h"
+#include "Types.h"
+#include "ObjGroup.h"
+#include "ObjEntity.h"
+#include "WithVerticesIndices.h"
 
 // ------------------------------------------------------------------
 //   GLOBALS
@@ -86,179 +60,8 @@ constexpr KeywordsArray_t elementsKeywords = {"v", "vt", "vn", "vp",
                                               "ctech", "stech"};
 
 // ------------------------------------------------------------------
-//   STRUCTS AND ENUMS
-// ------------------------------------------------------------------
-struct Coordinates3D
-{
-    float m_x = 0.0f;
-    float m_y = 0.0f;
-    float m_z = 0.0f;
-};
-
-enum class ElementType : int8_t
-{
-    NONE = -1,
-    VERTEX = 0,           //< v
-    VERTEX_TEXTURE,       //< vt
-    VERTEX_NORMAL,        //< vn
-    VERTEX_PARAM_SPACE,   //< vp
-    POINT = 8,            //< p
-    LINE,                 //< l
-    FACE,                 //< f
-    GROUP = 21,           //< g
-    SMOOTHING_GROUP,      //< s
-    MERGING_GROUP,        //< mg
-    OBJECT_NAME           //< o
-};
-
-// Some elements, such as faces and surfaces, may have a triplet of
-// numbers that reference vertex data.These numbers are the reference
-// numbers for a geometric vertex, a texture vertex, and a vertex normal.
-enum class VerticesIdxOrganization : int8_t
-{
-    NONE = -1,             //< No indices.
-    VGEO = 0,              //< Geometric vertex index only.
-    VGEO_VTEXTURE,         //< Geometric vertex + Vertex texture.
-    VGEO_VNORMAL,          //< Geometric vertex + Vertex normal.
-    VGEO_VTEXTURE_VNORMAL  //< Geometric vertex + Vertex texture + Vertex normal.
-};
-
-struct DocumentStats
-{
-    size_t m_VertexCount = 0;
-    size_t m_FacesCount = 0;
-    size_t m_TriangleCount = 0;
-    size_t m_QuadCount = 0;
-};
-
-// ------------------------------------------------------------------
 //   CLASSES
 // ------------------------------------------------------------------
-
-class Group
-{
-public:
-    Group(std::string&& groupName, const size_t entityTableIdx, const ElementType eGroupType) :
-        m_groupName(std::move(groupName)), m_entityTableIdx(entityTableIdx),
-        m_resolution(0), m_eGroupType(eGroupType)
-    {
-    }
-
-    Group(const size_t groupNum, const size_t entityTableIdx, const uint32_t resolution,
-          const ElementType eGroupType) :
-        m_groupNum(groupNum), m_entityTableIdx(entityTableIdx),
-        m_resolution(resolution), m_eGroupType(eGroupType)
-    {
-    }
-
-    Group(const Group&) = default;
-    Group(Group&& refGrp) = default;
-    Group& operator=(const Group&) = default;
-    Group& operator=(Group&& refGrp) = default;
-
-    bool operator==(const Group& another)
-    {
-        return (m_eGroupType == another.m_eGroupType);
-    }
-    Group& operator++(void)
-    {
-        ++m_entityTableOffset;
-
-        return (*this);
-    }
-
-    size_t getFirstIncludedEntityIndex(void) const
-    {
-        return (m_entityTableIdx);
-    }
-
-    size_t getIncludedEntityCount(void) const
-    {
-        return (m_entityTableOffset);
-    }
-
-    ElementType getType(void) const
-    {
-        return (m_eGroupType);
-    }
-
-private:
-
-    std::string m_groupName;         //< Used for group names and object name.
-    size_t m_groupNum = 0;           //< Used for Smoothing groups and Merging groups.
-    size_t m_entityTableIdx;         //< Index of the first entity included in this group.
-    size_t m_entityTableOffset = 0;  //< Count of entities included for this group.
-    uint32_t m_resolution;           //< Used only for Merging groups.
-    ElementType m_eGroupType;        //< Group type.
-};
-
-class ObjDatabase;
-class ObjEntity
-{
-public:
-    ObjEntity(const ElementType entityType) :
-        m_ID(0), m_type(entityType)
-    {
-    }
-
-    size_t getID(void) const
-    {
-        return (m_ID);
-    }
-
-    ElementType getType(void) const
-    {
-        return (m_type);
-    }
-
-private:
-    size_t m_ID;
-    ElementType m_type;
-
-    void setID(const size_t ID)
-    {
-        m_ID = ID;
-    }
-
-    friend ObjDatabase;
-};
-
-class WithVerticesIndices
-{
-public:
-    WithVerticesIndices(const size_t indexBufferIdx, const size_t indicesOffset,
-                        const VerticesIdxOrganization eParamsOrganization) :
-        m_indexBufferIdx(indexBufferIdx), m_indicesOffset(indicesOffset),
-        m_eParamsOrganization(eParamsOrganization)
-    {
-    }
-
-    IndexBufferRange_t getVerticesIndices(void) const
-    {
-        IndexBufferRange_t res = std::make_pair(gIdxBuffer.cbegin() + m_indexBufferIdx,
-                                                gIdxBuffer.cbegin() + m_indexBufferIdx +
-                                                m_indicesOffset);
-        return (res);
-    }
-
-    size_t getIndexBufferStart(void) const
-    {
-        return (m_indexBufferIdx);
-    }
-    size_t getIndicesCount(void) const
-    {
-        return (m_indicesOffset);
-    }
-    VerticesIdxOrganization getVerticesIndicesOrganization(void) const
-    {
-        return (m_eParamsOrganization);
-    }
-
-private:
-    size_t m_indexBufferIdx;                        //< Start index in the index buffer.
-    size_t m_indicesOffset;                         //< Count of indices for this face.
-    VerticesIdxOrganization m_eParamsOrganization;  //< Describes how indices are organized.
-};
 
 class ObjEntityFace : public ObjEntity, public WithVerticesIndices
 {
@@ -316,9 +119,12 @@ public:
         };
 
         std::for_each(m_currentGroupsIdx.cbegin(), m_currentGroupsIdx.cend(),
-                      [this](const size_t idx)
+                      [this](const int64_t idx)
                       {
-                          ++m_groupTable[idx];
+                          if(idx >= 0)
+                          {
+                              ++m_groupTable[idx];
+                          }
                       });
 
         ++m_totalEntitiesCount;
@@ -340,34 +146,30 @@ public:
         return (m_totalEntitiesCount);
     }
 
-    Group getNextGroup(void) const
+    ObjGroup getNextGroup(void) const
     {
-        const Group grp = std::move(m_groupTable.front());
+        const ObjGroup grp = std::move(m_groupTable.front());
         m_groupTable.erase(m_groupTable.cbegin());
 
         return (grp);
     }
-    void insertGroup(Group&& grp)
+    void insertGroup(ObjGroup&& grp)
     {
-        if(grp.getType() != ElementType::OBJECT_NAME)
+        switch(grp.getType())
         {
-            if(m_currentGroupsIdx.empty() == false)
-            {
-                if(grp.getType() == ElementType::GROUP)
-                {
-                    m_currentGroupsIdx.clear();
-                }
-                else
-                {
-                    const size_t idx = m_currentGroupsIdx.back();
-                    if(m_groupTable[idx].getType() != ElementType::GROUP)
-                    {
-                        m_currentGroupsIdx.pop_back();
-                    }
-                }
-            }
+        case ElementType::GROUP:
+        m_currentGroupsIdx[0] = m_groupTable.size();
+        break;
 
-            m_currentGroupsIdx.push_back(m_groupTable.size());
+        case ElementType::SMOOTHING_GROUP:
+        m_currentGroupsIdx[1] = m_groupTable.size();
+        break;
+
+        case ElementType::MERGING_GROUP:
+        m_currentGroupsIdx[2] = m_groupTable.size();
+        break;
+
+        default: break;
         }
 
         m_groupTable.push_back(std::move(grp));
@@ -391,12 +193,12 @@ public:
     }
 
 private:
-    mutable std::queue<ObjEntity*> m_entityTable;  //< Queue of pointers to all the entities.
-    std::vector<ObjEntityFace> m_facesTable;       //< Vector of Face entities.
-    mutable std::vector<Group> m_groupTable;       //< Queue of groups.
-    std::vector<size_t> m_currentGroupsIdx;        //< Vector of current groups.
-    size_t m_totalEntitiesCount = 0;
-    bool m_DBSynced = false;
+    mutable std::queue<ObjEntity*> m_entityTable;         //< Queue of pointers to all the entities.
+    std::vector<ObjEntityFace> m_facesTable;                   //< Vector of Face entities.
+    mutable std::vector<ObjGroup> m_groupTable;                   //< Queue of groups.
+    std::array<int64_t, 3> m_currentGroupsIdx = {-1, -1, -1};  //< Vector of current groups.
+    size_t m_totalEntitiesCount = 0;                           //< Total number of entities.
+    bool m_DBSynced = false;                                   //< Was the entityTable synced?
 };
 
 // ------------------------------------------------------------------
@@ -550,6 +352,8 @@ void parseFace(const ElemIDResult_t& elementIDRes)
 
     gDocStats.m_FacesCount++;
 
+    OBJASSERT(idxCount <= 12, "Face has too many vertices indices");
+
     ObjEntityFace objFace(gIdxBuffer.size() - idxCount, idxCount, vtxIdxOrg);
     gObjDB.insertEntity(objFace);
 }
@@ -564,7 +368,7 @@ void parseGroup(const ElemIDResult_t& elementIDRes)
         // Only a group name points to an entity index.
         const size_t entityTableIdx = (elementIDRes.first == ElementType::GROUP) ?
                                       gObjDB.getEntitiesCount() : 0;
-        Group grp(std::move(args), entityTableIdx, elementIDRes.first);
+        ObjGroup grp(std::move(args), entityTableIdx, elementIDRes.first);
         gObjDB.insertGroup(std::move(grp));
     }
     else
@@ -572,7 +376,7 @@ void parseGroup(const ElemIDResult_t& elementIDRes)
         {
             const size_t groupNum = std::stol(args);
 
-            Group grp(groupNum, gObjDB.getEntitiesCount(), 0, elementIDRes.first);
+            ObjGroup grp(groupNum, gObjDB.getEntitiesCount(), 0, elementIDRes.first);
             gObjDB.insertGroup(std::move(grp));
         }
 }
@@ -646,6 +450,12 @@ void parseElementDataArgs(const ElemIDResult_t& elementIDRes)
     }
 }
 
+/**
+      *  @brief  Returns the size of a JSON object in the OCI world.
+      *
+      *  @param  rJsonVal JSON object which size will be calculated.
+      *  @return the size of the JSON object in the OCI world.
+      */
 ElementType lastElement = ElementType::NONE;
 void parseLine(const std::string& oneLine)
 {
@@ -735,19 +545,18 @@ int main(void)
 
     while(gObjDB.getGroupsCount() > 0)
     {
-        Group grp = gObjDB.getNextGroup();
+        ObjGroup grp = gObjDB.getNextGroup();
 
-        if(grp.getType() == ElementType::GROUP)
-        {
-            printf("g ");
-        }
-        else
-        {
-            printf("s ");
-        }
+        // if(grp.getType() == ElementType::GROUP)
+        // {
+        //     OBJLOG("g ");
+        // }
+        // else
+        // {
+        //     OBJLOG("s ");
+        // }
 
-        printf(": %lu -> %lu\n", grp.getFirstIncludedEntityIndex(),
-              grp.getIncludedEntityCount());
+        OBJLOG(": ", grp.getFirstIncludedEntityIndex(), " -> ", grp.getIncludedEntitiesCount(), "\n");
     }
 
     return (0);
