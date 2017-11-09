@@ -6,6 +6,6 @@ if [ "$1" = "-test" ]; then
 
 else
 
-    build/bin/objparser $1
+    build/bin/objparser $1 $2
 
 fi
