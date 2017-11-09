@@ -253,17 +253,47 @@ void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
     size_t idxCount = 0;
     size_t pos = 0;
 
+
+    const std::array<size_t, 3> buffersPtrs = {m_objDB.getIndexBufferCount(),
+                                               m_objDB.getTextureUVIndexBufferCount(),
+                                               m_objDB.getVertexNormalIndexBufferCount()};
+    uint8_t bufferPtrIdx = 0;
+
     while(pos < args.size())
     {
         args.erase(args.cbegin(), args.cbegin() + pos);
-        const size_t vtxIdx = std::stol(args, &pos);
+        int64_t vtxIdx = std::stol(args, &pos);
+
+        // Negative indices refere to the last nth position in a buffer = buffer.size - idx.
+        if(vtxIdx < 0)
+        {
+            switch(vtxIdxOrg)
+            {
+            case VerticesIdxOrganization::VGEO_VTEXTURE:
+                bufferPtrIdx = (bufferPtrIdx == 0) ? 1 : 0;
+                break;
+
+            case VerticesIdxOrganization::VGEO_VNORMAL:
+                bufferPtrIdx = (bufferPtrIdx == 0) ? 2 : 0;
+                break;
+
+            case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL:
+                bufferPtrIdx = (bufferPtrIdx < 2) ? ++bufferPtrIdx : 0;
+                break;
+
+            default: break;
+            }
+
+            vtxIdx = buffersPtrs[bufferPtrIdx] + vtxIdx + 1;
+        }
+        
         m_objDB.insertIndex(vtxIdx);
         ++idxCount;
     }
 
     OBJASSERT(idxCount <= 12, "Face has too many vertices indices");
 
-    ObjEntityFace objFace(m_objDB.getIndicesCount() - idxCount, idxCount, vtxIdxOrg);
+    ObjEntityFace objFace(m_objDB.getIndexBufferCount() - idxCount, idxCount, vtxIdxOrg);
     m_objDB.insertEntity(std::move(objFace));
 }
 
