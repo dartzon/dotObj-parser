@@ -1,3 +1,3 @@
 #!/bin/bash
 
-build/bin/objparser
+build/bin/objparser $1
