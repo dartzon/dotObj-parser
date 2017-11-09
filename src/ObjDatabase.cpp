@@ -88,6 +88,17 @@ const VerticesRefList_t& ObjDatabase::getVerticesList(const WithVerticesIndices&
 
 // =================================================================================================
 
+IndexBufferRefRange_t ObjDatabase::getVerticesIndicesList(const WithVerticesIndices&
+                                                          elemWithVertices) const
+{
+    const IndexBufferRange_t vtxIdxRange = elemWithVertices.getVerticesIndicesRange();
+
+    return(std::make_pair(m_IdxBuffer.cbegin() + vtxIdxRange.first,
+                          m_IdxBuffer.cbegin() + vtxIdxRange.first + vtxIdxRange.second));
+}
+
+// =================================================================================================
+
 EntitiesRefRange_t ObjDatabase::getEntitiesInGroup(const ObjGroup& group) const
 {
     const EntitiesIndexRange_t entIdxRange = group.getEntitiesIndicesRange();

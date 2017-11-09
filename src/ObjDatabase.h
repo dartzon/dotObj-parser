@@ -61,6 +61,14 @@ public:
     const VerticesRefList_t& getVerticesList(const WithVerticesIndices& elemWithVertices);
 
     /**
+      *  @brief  Return a pair of iterators to the first and the last vertices indices.
+      *
+      *  @param  elemWithVertices Reference to Obj entity.
+      *  @return  pair of iterators to the first and the last vertices indices.
+      */
+    IndexBufferRefRange_t getVerticesIndicesList(const WithVerticesIndices& elemWithVertices) const;
+
+    /**
       *  @brief  Return a list of pointers to entities included in an Obj Group.
       *
       *  @param  group Concerned group.
@@ -126,13 +134,26 @@ public:
     {
         return (m_groupTable.size());
     }
-    inline size_t getIndicesCount(void) const
+    inline size_t getIndexBufferCount(void) const
     {
         return (m_IdxBuffer.size());
+    }
+    inline size_t getTextureUVIndexBufferCount(void) const
+    {
+        return (m_TexUVBuffer.size());
+    }
+    inline size_t getVertexNormalIndexBufferCount(void) const
+    {
+        return (m_NormalBuffer.size());
     }
     inline size_t getEntitiesCount(void) const
     {
         return (m_totalEntitiesCount);
+    }
+
+    inline const VertexBuffer_t& getVertexBuffer(void) const
+    {
+        return (m_VBuffer);
     }
 
 private:
