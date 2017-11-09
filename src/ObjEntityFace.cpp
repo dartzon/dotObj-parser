@@ -21,62 +21,36 @@
 // =============================================================================
 
 /*
- * \file      ObjEntity.h
- *
- * \brief     Base class for Obj entities.
+ * \file      ObjEntityFace.cpp
  *
  * \author    Othmane AIT EL CADI - dartzon@gmail.com
  * \date      08-11-2017
  */
 
-#ifndef __OBJENTITY_H__
-#define __OBJENTITY_H__
+#include "ObjEntityFace.h"
 
-#include "Types.h"
-
-// Forward declaration of friend class.
-class ObjDatabase;
-
-class ObjEntity
+ObjEntityFace::ObjEntityFace(const size_t indexBufferIdx, const size_t indicesOffset,
+                             const VerticesIdxOrganization eParamsOrganization) :
+    ObjEntity(ElementType::FACE),
+    WithVerticesIndices(indexBufferIdx, indicesOffset, eParamsOrganization)
 {
-public:
-
-    /**
-      *  @brief  Constructor.
-      *
-      *  @param  entityType Type of the entity.
-      */
-    explicit ObjEntity(const ElementType entityType) :
-        m_ID(0), m_type(entityType)
+    // Determine if this face is a triangle.
+    switch(eParamsOrganization)
     {
-    }
+    case VerticesIdxOrganization::VGEO:
+        m_isTriangle = (indicesOffset == 3);
+        break;
 
-    // Accessors ===================================================================================
+    case VerticesIdxOrganization::VGEO_VTEXTURE:
+    case VerticesIdxOrganization::VGEO_VNORMAL:
+        m_isTriangle = (indicesOffset == 6);
+        break;
 
-    size_t getID(void) const
-    {
-        return (m_ID);
-    }
-    ElementType getType(void) const
-    {
-        return (m_type);
-    }
+    case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL:
+        m_isTriangle = (indicesOffset == 9);
+        break;
 
-private:
+    default: m_isTriangle = false;
+    };
+}
 
-    // Accessors ===================================================================================
-
-    void setID(const size_t ID)
-    {
-        m_ID = ID;
-    }
-
-    // Members =====================================================================================
-
-    size_t m_ID;         //< Entity ID.
-    ElementType m_type;  //< Entity type.
-
-    friend ObjDatabase;  //< The ObjDatabase class will call ObjEntity::setID after each insertion.
-};
-
-#endif /* __OBJENTITY_H__ */

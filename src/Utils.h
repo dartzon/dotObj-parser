@@ -24,7 +24,7 @@
  * \file      Utils.h
  *
  * \brief     Debug utilities.
- * \details   Custom assert and logging functions.
+ * \details   Custom assert/logging functions and string manipulation class.
  *
  * \author    Othmane AIT EL CADI - dartzon@gmail.com
  * \date      07-11-2017
@@ -42,7 +42,6 @@
 
 #   include <cstdio>
 #   include <cstdint>
-#   include <cstdlib>
 #   include <sstream>
 
 #   define OBJHALT() abort()
@@ -51,13 +50,13 @@ namespace ObjUtils
 {
 
 /**
-    *  @brief  Halts the execution and displays a message if test is false.
-    *
-    *  @param  pExpression expression to evaluate.
-    *  @param  pCause message to display if test is false.
-    *  @param  pFilename source filename.
-    *  @param  linenum line of the call in the caller function.
-    */
+  *  @brief  Halts the execution and displays a message if test is false.
+  *
+  *  @param  pExpression expression to evaluate.
+  *  @param  pCause message to display if test is false.
+  *  @param  pFilename source filename.
+  *  @param  linenum line of the call in the caller function.
+  */
 inline void assertFunction(const char* pExpression, const char* pCause, const char* pFilename,
                            const uint32_t linenum)
 {
@@ -65,14 +64,15 @@ inline void assertFunction(const char* pExpression, const char* pCause, const ch
            pExpression, pCause, pFilename, linenum);
 }
 
-void doLog_VarArgs(const char* pFilename, const uint32_t linenum,
-                   std::ostringstream& strBuilder)
+inline void doLog_VarArgs(const char* pFilename, const uint32_t linenum,
+                          std::ostringstream& strBuilder)
 {
-    printf("[DBG INFO] %s(%u): %s", pFilename, linenum, strBuilder.str().c_str());
+    printf("[DBG INFO] %s(%u): %s\n", pFilename, linenum, strBuilder.str().c_str());
 }
+
 template<typename T, typename... Args>
-void doLog_VarArgs(const char* pFilename, const uint32_t linenum,
-                   std::ostringstream& strBuilder, T firstArg, const Args&... args)
+inline void doLog_VarArgs(const char* pFilename, const uint32_t linenum,
+                          std::ostringstream& strBuilder, T firstArg, const Args&... args)
 {
     strBuilder << firstArg;
     doLog_VarArgs(pFilename, linenum, strBuilder, args...);
@@ -86,7 +86,7 @@ void doLog_VarArgs(const char* pFilename, const uint32_t linenum,
     *  @param  args variadic parameters.
     */
 template<typename... Args>
-void logFunction(const char* pFilename, const uint32_t linenum, const Args&... args)
+inline void logFunction(const char* pFilename, const uint32_t linenum, const Args&... args)
 {
     std::ostringstream strBuilder;
     doLog_VarArgs(pFilename, linenum, strBuilder, args...);
@@ -94,14 +94,41 @@ void logFunction(const char* pFilename, const uint32_t linenum, const Args&... a
 
 } /* namespace ObjUtils */
 
-#   define OBJASSERT( exp, msg )                                        \
-    do{  if ( exp == false ) {                                          \
+#   define OBJASSERT( exp, msg )                                     \
+    do{  if ( (exp) == false ) {                                        \
             ObjUtils::assertFunction( #exp, msg, __FILE__, __LINE__);   \
             OBJHALT(); } }while(false)
 
-#   define OBJLOG(...)                                                  \
+#   define OBJLOG(...)                                               \
     do{ ObjUtils::logFunction(__FILE__, __LINE__, __VA_ARGS__); }while(false)
 
 #endif
+
+#include <string>
+
+namespace ObjUtils
+{
+
+/**
+  *  @brief  String helper functions.
+  */
+class StringUtils final
+{
+public:
+
+    /**
+      *  @brief  This class is not to be instanciated.
+      */
+    StringUtils(void) = delete;
+
+    /**
+      *  @brief  Remove blanks surrounding a string.
+      *
+      *  @param  str[in,out] Reference to std::string.
+      */
+    static void removeSurroundingBlanks(std::string& str);
+};
+
+} /* namespace ObjUtils */
 
 #endif /* __UTILS_H__ */

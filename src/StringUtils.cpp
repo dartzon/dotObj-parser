@@ -21,62 +21,44 @@
 // =============================================================================
 
 /*
- * \file      ObjEntity.h
- *
- * \brief     Base class for Obj entities.
+ * \file      StringUtils.cpp
  *
  * \author    Othmane AIT EL CADI - dartzon@gmail.com
  * \date      08-11-2017
  */
 
-#ifndef __OBJENTITY_H__
-#define __OBJENTITY_H__
-
+#include "Utils.h"
 #include "Types.h"
 
-// Forward declaration of friend class.
-class ObjDatabase;
+#include <algorithm>
 
-class ObjEntity
+namespace ObjUtils
 {
-public:
 
-    /**
-      *  @brief  Constructor.
-      *
-      *  @param  entityType Type of the entity.
-      */
-    explicit ObjEntity(const ElementType entityType) :
-        m_ID(0), m_type(entityType)
+void StringUtils::removeSurroundingBlanks(std::string& str)
+{
+    // Look for the first non blank character.
+    CStringIterator_t strItr = std::find_if(str.cbegin(), str.cend(), [](const char c)
+                                            {
+                                                return (isblank(c) == 0);
+                                            });
+    if(strItr != str.end())
     {
+        str.erase(str.cbegin(), strItr);
     }
 
-    // Accessors ===================================================================================
-
-    size_t getID(void) const
+    // Look for the first non blank character starting from the end of the string.
+    RStringIterator_t strRItr = std::find_if_not(str.rbegin(), str.rend(), [](const char c)
+                                                 {
+                                                     return (isspace(c) != 0);
+                                                 });
+    if(strRItr != str.rend())
     {
-        return (m_ID);
+        // Resize the string to remove blanks.
+        const size_t sz = std::distance(str.rbegin(), strRItr);
+        str.resize(str.size() - sz);
     }
-    ElementType getType(void) const
-    {
-        return (m_type);
-    }
+}
 
-private:
+} /* namespace ObjUtils */
 
-    // Accessors ===================================================================================
-
-    void setID(const size_t ID)
-    {
-        m_ID = ID;
-    }
-
-    // Members =====================================================================================
-
-    size_t m_ID;         //< Entity ID.
-    ElementType m_type;  //< Entity type.
-
-    friend ObjDatabase;  //< The ObjDatabase class will call ObjEntity::setID after each insertion.
-};
-
-#endif /* __OBJENTITY_H__ */

@@ -33,6 +33,12 @@
 #ifndef __TYPEDEFS_H__
 #define __TYPEDEFS_H__
 
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+#include <array>
+#include <string>
+
 // Represents a 2D/3D coordinates.
 struct Coordinates3D;
 using Vertex_t = Coordinates3D;
@@ -44,11 +50,20 @@ using TextureUVBuffer_t = std::vector<Vertex_t>;
 // Vertices normals buffer type.
 using NormalBuffer_t = std::vector<Vertex_t>;
 
+// List of vertices.
+using VerticesRefList_t = std::vector<Vertex_t*>;
+
+// List of Obj entities.
+class ObjEntity;
+using EntityRefList_t = std::vector<ObjEntity*>;
+
 // Vertices indices buffer type.
 using IndexBuffer_t = std::vector<size_t>;
 // Range of vertices indices type.
-using IndexBufferRange_t = std::pair<IndexBuffer_t::const_iterator,
-                                     IndexBuffer_t::const_iterator>;
+using IndexBufferRange_t = std::pair<size_t, size_t>;
+using EntitiesIndexRange_t = IndexBufferRange_t;
+using EntitiesRefRange_t = std::pair<EntityRefList_t::const_iterator,
+                                     EntityRefList_t::const_iterator>;
 
 // Wavefront Obj keyword dictionary type.
 template<size_t sz> using ObjKeywords_t = std::array<const char*, sz>;

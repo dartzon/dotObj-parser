@@ -21,70 +21,51 @@
 // =============================================================================
 
 /*
- * \file      WithVerticesIndices.h
+ * \file      ObjEntityFace.h
  *
- * \brief     Obj entity with vertices indices.
- * \details   Any Obj entity with vertices indices such as (face), should inherit from this class.
+ * \brief     Face entity.
+ * \details   Represents an Obj Face with its vertices indices list.
  *
  * \author    Othmane AIT EL CADI - dartzon@gmail.com
  * \date      08-11-2017
  */
 
-#ifndef __WITHVERTICESINDICES_H__
-#define __WITHVERTICESINDICES_H__
+#ifndef __OBJENTITYFACE_H__
+#define __OBJENTITYFACE_H__
 
-#include "Types.h"
+#include "ObjEntity.h"
+#include "WithVerticesIndices.h"
 
-class WithVerticesIndices
+class ObjEntityFace : public ObjEntity, public WithVerticesIndices
 {
 public:
 
     /**
-      *  @brief  Constructor.
+      *  @brief  Constructor for (g/o).
       *
       *  @param  indexBufferIdx Index of the first vertex index.
       *  @param  indicesOffset Count of vertices indices.
       *  @param  eParamsOrganization Vertices indices layout.
       */
-    WithVerticesIndices(const size_t indexBufferIdx, const size_t indicesOffset,
-                        const VerticesIdxOrganization eParamsOrganization) :
-        m_indexBufferIdx(indexBufferIdx), m_indicesOffset(indicesOffset),
-        m_eParamsOrganization(eParamsOrganization)
-    {
-    }
+    ObjEntityFace(const size_t indexBufferIdx, const size_t indicesOffset,
+                  const VerticesIdxOrganization eParamsOrganization);
 
-    /**
-      *  @brief  Returns a pair representing a range of vertices indices.
-      *
-      *  @return Pair of vertices indices [start, end].
-      */
-    IndexBufferRange_t getVerticesIndicesRange(void) const
-    {
-        return (std::make_pair(m_indexBufferIdx, m_indicesOffset));
-    }
+    ObjEntityFace(const ObjEntityFace&) = default;
+    ObjEntityFace(ObjEntityFace&&) = default;
+
 
     // Accessors ===================================================================================
 
-    inline size_t getIndexBufferStart(void) const
+    inline bool isTriangle(void) const
     {
-        return (m_indexBufferIdx);
-    }
-    inline size_t getIndicesCount(void) const
-    {
-        return (m_indicesOffset);
-    }
-    inline VerticesIdxOrganization getVerticesIndicesOrganization(void) const
-    {
-        return (m_eParamsOrganization);
+        return (m_isTriangle);
     }
 
 private:
 
     // Members =====================================================================================
 
-    size_t m_indexBufferIdx;                        //< Start index in the index buffer.
-    size_t m_indicesOffset;                         //< Count of indices for this face.
-    VerticesIdxOrganization m_eParamsOrganization;  //< Describes how indices are organized.
+    bool m_isTriangle;    //< Is this face a triangle?
 };
 
-#endif /* __WITHVERTICESINDICES_H__ */
+#endif /* __OBJENTITYFACE_H__ */

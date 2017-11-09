@@ -33,21 +33,33 @@
 #ifndef __OBJGROUP_H__
 #define __OBJGROUP_H__
 
-#include <string>
-#include <cstdint>
-
 #include "Types.h"
 
 class ObjGroup
 {
 public:
-    ObjGroup(std::string&& groupName, const size_t entityTableIdx,
-             const ElementType eGroupType) :
+
+    /**
+      *  @brief  Constructor for (g/o).
+      *
+      *  @param  groupName Name of the group.
+      *  @param  entityTableIdx Index of the first included entity.
+      *  @param  eGroupType Group type.
+      */
+    ObjGroup(std::string&& groupName, const size_t entityTableIdx, const ElementType eGroupType) :
         m_groupName(std::move(groupName)), m_entityTableIdx(entityTableIdx),
         m_resolution(0), m_eGroupType(eGroupType)
     {
     }
 
+    /**
+      *  @brief  Constructor for (s/mg).
+      *
+      *  @param  groupNum Number of the group.
+      *  @param  entityTableIdx Index of the first included entity.
+      *  @param  resolution Resolution of the group if (mg).
+      *  @param  eGroupType Group type.
+      */
     ObjGroup(const size_t groupNum, const size_t entityTableIdx, const uint32_t resolution,
              const ElementType eGroupType) :
         m_groupNum(groupNum), m_entityTableIdx(entityTableIdx),
@@ -55,20 +67,33 @@ public:
     {
     }
 
-    // Operators ===================================================================================
-
     ObjGroup(const ObjGroup&) = default;
     ObjGroup(ObjGroup&& refGrp) = default;
+
+    // Operators ===================================================================================
+
     ObjGroup& operator=(const ObjGroup&) = default;
     ObjGroup& operator=(ObjGroup&& refGrp) = default;
 
     /**
       *  @brief  Include one more entity in this group.
       */
-    ObjGroup& operator++(void)
+    inline ObjGroup& operator++(void)
     {
         ++m_entityTableOffset;
         return (*this);
+    }
+
+    // =============================================================================================
+
+    /**
+      *  @brief  Returns a pair representing a range of entities indices.
+      *
+      *  @return Pair of entities indices [start, end].
+      */
+    EntitiesIndexRange_t getEntitiesIndicesRange(void) const
+    {
+        return (std::make_pair(m_entityTableIdx, m_entityTableOffset));
     }
 
     // Accessors ===================================================================================
