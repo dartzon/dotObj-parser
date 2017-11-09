@@ -36,15 +36,22 @@
 #include "ObjDatabase.h"
 #include "ObjFileParser.h"
 
+#include <cstdio>
+
 #include <algorithm>
 
 int main(int argc, char *argv[])
 {
     const char* objFilePath = "";
-
     if(argc > 1)
     {
         objFilePath = argv[1];
+    }
+
+    float scale = 1.0f;
+    if(argc > 2)
+    {
+        scale = std::stof(argv[2]);
     }
 
     ObjDatabase gObjDB;
@@ -54,53 +61,79 @@ int main(int argc, char *argv[])
         return (1);
     }
 
-    if(gObjDB.getGroupsCount() > 0)
-    {
-        ObjGroup* pGrp = nullptr;
-        while((pGrp = gObjDB.getNextGroup()) != nullptr)
-        {
-            printf(">>> Group:\n");
+    const char* pOutJSFile = "out3d/js/renderObjFile.js";
+    const std::unique_ptr<std::FILE, decltype(&fclose)> smtObjFile(fopen(pOutJSFile, "w"),
+                                                                   &fclose);
 
-            EntitiesRefRange_t rng = gObjDB.getEntitiesInGroup(*pGrp);
-            std::for_each(rng.first, rng.second,
-                          [&gObjDB](const ObjEntity* pEnt)
+    fprintf(smtObjFile.get(), "function renderObjFile()\n{\n"
+            "var geometry = new THREE.Geometry();\n"
+            "var normal = null;\nvar color = new THREE.Color( 0xffaa00 );"
+            "\nvar materialIndex = 0;\nvar face;\n");
+
+    const VertexBuffer_t& vtxBuffer = gObjDB.getVertexBuffer();
+    std::for_each(vtxBuffer.cbegin(), vtxBuffer.cend(),
+                  [&smtObjFile, scale](const Vertex_t& vtx)
                           {
-                              if(pEnt->getType() == ElementType::FACE)
-                              {
-                                  const ObjEntityFace& fc = *static_cast<const ObjEntityFace*>(pEnt);
+                              const char* cmd = "geometry.vertices.push( new THREE.Vector3("
+                                                "%f, %f, %f) );\n";
 
-                                  VerticesRefList_t vtxRefLst = gObjDB.getVerticesList(fc);
-
-                printf(">>> f [%s]\n", (fc.isTriangle() == true) ? "TRIANGLE" : "QUAD");
-                std::for_each(vtxRefLst.cbegin(), vtxRefLst.cend(),
-                              [](const Vertex_t* pVtx)
-                              {
-                                  printf("%f %f %f\n", pVtx->m_x, pVtx->m_y, pVtx->m_z);
-                              });
-                              }
+                              fprintf(smtObjFile.get(), cmd, vtx.m_x * scale, vtx.m_y * scale,
+                                      vtx.m_z * scale);
                           });
-        }
-    }
-    else
+
+    ObjEntity* pEnt = nullptr;
+    while((pEnt = gObjDB.getNextEntity()) != nullptr)
     {
-        ObjEntity* pEnt = nullptr;
-        while((pEnt = gObjDB.getNextEntity()) != nullptr)
+        if(pEnt->getType() == ElementType::FACE)
         {
-            if(pEnt->getType() == ElementType::FACE)
+            ObjEntityFace& fc = *static_cast<ObjEntityFace*>(pEnt);
+
+            IndexBufferRefRange_t idxBufRefR = gObjDB.getVerticesIndicesList(fc);
+
+            const VerticesIdxOrganization vtxIdxOrg = fc.getVerticesIndicesOrganization();
+            uint8_t step = 1;
+            switch(vtxIdxOrg)
             {
-                ObjEntityFace& fc = *static_cast<ObjEntityFace*>(pEnt);
+            case VerticesIdxOrganization::VGEO : step = 1; break;
 
-                VerticesRefList_t vtxRefLst = gObjDB.getVerticesList(fc);
+            case VerticesIdxOrganization::VGEO_VNORMAL:
+            case VerticesIdxOrganization::VGEO_VTEXTURE : step = 2; break;
 
-                printf(">>> f [%s]\n", (fc.isTriangle() == true) ? "TRIANGLE" : "QUAD");
-                std::for_each(vtxRefLst.cbegin(), vtxRefLst.cend(),
-                              [](const Vertex_t* pVtx)
-                              {
-                                  printf("%f %f %f\n", pVtx->m_x, pVtx->m_y, pVtx->m_z);
-                              });
+
+            case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL : step = 3; break;
+
+            default: break;
+            }
+
+            if(fc.isTriangle() == true)
+            {
+                const char* faceCmd = "face = new THREE.Face3( %lu, %lu, %lu, normal, color, "
+                                      "materialIndex );\n"
+                                      "geometry.faces.push( face );\n";
+
+                fprintf(smtObjFile.get(), faceCmd, (*idxBufRefR.first) - 1,
+                        *(idxBufRefR.first + step) - 1,
+                        *(idxBufRefR.first + (step * 2)) - 1);
+            }
+            else
+            {
+                const char* faceCmd = "face = new THREE.Face3( %lu, %lu, %lu,"
+                                      " normal, color, materialIndex );\n"
+                                      "geometry.faces.push( face );\n";
+
+                const size_t v1 = (*idxBufRefR.first) - 1;
+                const size_t v2 = *(idxBufRefR.first + step) - 1;
+                const size_t v3 = *(idxBufRefR.first + (step * 2)) - 1;
+                const size_t v4 = *(idxBufRefR.first + (step * 3)) - 1;
+
+                fprintf(smtObjFile.get(), faceCmd, v1, v2, v3);
+
+                fprintf(smtObjFile.get(), faceCmd, v1, v3, v4);
             }
         }
     }
+
+    fprintf(smtObjFile.get(), "\n\nreturn (geometry);\n}\n");
 
     return (0);
 }
