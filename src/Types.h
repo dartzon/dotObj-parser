@@ -52,15 +52,14 @@ using NormalBuffer_t = std::vector<Vertex_t>;
 
 // List of vertices.
 using VerticesRefList_t = std::vector<Vertex_t*>;
+using IndexBuffer_t = std::vector<size_t>;
+using IndexBufferRange_t = std::pair<size_t, size_t>;
+using IndexBufferRefRange_t = std::pair<IndexBuffer_t::const_iterator,
+                                        IndexBuffer_t::const_iterator>;
 
 // List of Obj entities.
 class ObjEntity;
 using EntityRefList_t = std::vector<ObjEntity*>;
-
-// Vertices indices buffer type.
-using IndexBuffer_t = std::vector<size_t>;
-// Range of vertices indices type.
-using IndexBufferRange_t = std::pair<size_t, size_t>;
 using EntitiesIndexRange_t = IndexBufferRange_t;
 using EntitiesRefRange_t = std::pair<EntityRefList_t::const_iterator,
                                      EntityRefList_t::const_iterator>;
