@@ -164,7 +164,7 @@ The automated tests will open a 3D .obj file from `tests/models` folder and chec
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE) file for details
 
 ## Documentation sources
 
