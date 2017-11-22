@@ -32,7 +32,7 @@
 #include "Utils.h"
 #include <algorithm>
 
-void ObjDatabase::insertVertex(const Vertex_t& vtx, const ElementType eVtxType) noexcept
+void ObjDatabase::insertVertex(const Vertex_t& vtx, const ElementType eVtxType)
 {
     switch(eVtxType)
     {
@@ -109,7 +109,7 @@ EntitiesRefRange_t ObjDatabase::getEntitiesInGroup(const ObjGroup& group) const
 
 // =================================================================================================
 
-void ObjDatabase::insertEntity(ObjEntity&& obj) noexcept
+void ObjDatabase::insertEntity(ObjEntity&& obj)
 {
     // Insert the Obj entity in its proper container.
     switch(obj.getType())
@@ -137,21 +137,7 @@ void ObjDatabase::insertEntity(ObjEntity&& obj) noexcept
 
 // =================================================================================================
 
-ObjEntity* ObjDatabase::getNextEntity(void) const noexcept
-{
-    ObjEntity* pObjEnt = nullptr;
-
-    if(m_lastFetchedEntity != m_entityTable.cend())
-    {
-        pObjEnt = *m_lastFetchedEntity++;
-    }
-
-    return (pObjEnt);
-}
-
-// =================================================================================================
-
-void ObjDatabase::insertGroup(ObjGroup&& grp) noexcept
+void ObjDatabase::insertGroup(ObjGroup&& grp)
 {
     // Store this Obj group's index in the current Groups buffer.
     switch(grp.getType())

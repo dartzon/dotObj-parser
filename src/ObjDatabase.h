@@ -45,12 +45,33 @@ class ObjDatabase
 public:
 
     /**
+      *  @brief  Default ctor.
+      */
+    ObjDatabase(void) = default;
+    /**
+      *  @brief  Deleted copy ctor, we only need one Obj Database instance.
+      */
+    ObjDatabase(const ObjDatabase&) = delete;
+    /**
+      *  @brief  Default move ctor.
+      */
+    ObjDatabase(ObjDatabase&&) = default;
+    /**
+      *  @brief  Deleted assignment operator, we only need one Obj Database instance.
+      */
+    ObjDatabase& operator=(const ObjDatabase&) = delete;
+    /**
+      *  @brief  Default move assignment operator.
+      */
+    ObjDatabase& operator=(ObjDatabase&&) = default;
+
+    /**
       *  @brief  Insert a Vertex.
       *
       *  @param  vtx Vertex to be inserted.
       *  @param  eVtxType Vertex type.
       */
-    void insertVertex(const Vertex_t& vtx, const ElementType eVtxType) noexcept;
+    void insertVertex(const Vertex_t& vtx, const ElementType eVtxType);
 
     /**
       *  @brief  Return a list of vertices corresponding to the entity passed as a parameter.
@@ -81,20 +102,14 @@ public:
       *
       *  @param  obj Obj entity to be inserted.
       */
-    void insertEntity(ObjEntity&& obj) noexcept;
-
-    /**
-      *  @brief  Get the next entity in the database.
-      *  @return Pointer to next entity.
-      */
-    ObjEntity* getNextEntity(void) const noexcept;
+    void insertEntity(ObjEntity&& obj);
 
     /**
       *  @brief  Insert a new Obj entity. The object will be moved.
       *
       *  @param  obj Obj entity to be inserted.
       */
-    void insertGroup(ObjGroup&& grp)  noexcept;
+    void insertGroup(ObjGroup&& grp);
 
     /**
       *  @brief  Get the next group in the database.
@@ -107,7 +122,7 @@ public:
       *
       *  @param  obj Obj entity to be inserted.
       */
-    inline void insertIndex(const size_t idx) noexcept
+    inline void insertIndex(const size_t idx)
     {
         m_IdxBuffer.push_back(idx);
     }
@@ -115,7 +130,7 @@ public:
     /**
       *  @brief  Notify that the Obj file parsing is over.
       */
-    inline void parsingFinished(void) noexcept
+    inline void parsingFinished(void)
     {
         sync();
     }
@@ -123,9 +138,39 @@ public:
     /**
       *  @brief  Pre-allocate memory for the next wave of vertices indices.
       */
-    inline void reserveIndexBufferMemory(void) noexcept
+    inline void reserveIndexBufferMemory(void)
     {
         m_IdxBuffer.reserve(m_VBuffer.size() + m_TexUVBuffer.size() + m_NormalBuffer.size());
+    }
+
+    // Iterators functions =========================================================================
+
+    using FacesBuffer_t = std::vector<ObjEntityFace>;
+    FacesBuffer_t::iterator begin(void) noexcept
+    {
+        return (m_facesTable.begin());
+    }
+    FacesBuffer_t::iterator end(void) noexcept
+    {
+        return (m_facesTable.end());
+    }
+
+    FacesBuffer_t::const_iterator begin(void) const noexcept
+    {
+        return (m_facesTable.begin());
+    }
+    FacesBuffer_t::const_iterator end(void) const noexcept
+    {
+        return (m_facesTable.end());
+    }
+
+    FacesBuffer_t::const_iterator cbegin(void) const noexcept
+    {
+        return (m_facesTable.cbegin());
+    }
+    FacesBuffer_t::const_iterator cend(void) const noexcept
+    {
+        return (m_facesTable.cend());
     }
 
     // Accessors ===================================================================================
@@ -156,6 +201,11 @@ public:
         return (m_VBuffer);
     }
 
+    inline bool isEmpty(void) const
+    {
+        return (m_facesTable.size() == 0);
+    }
+
 private:
 
     /**
@@ -168,12 +218,12 @@ private:
 
     // Members =====================================================================================
 
-    mutable EntityRefList_t m_entityTable;                //< Queue of pointers to all the entities.
+    EntityRefList_t m_entityTable;                         //< Queue of pointers to all the entities.
     mutable EntityRefList_t::iterator m_lastFetchedEntity; //< Last fetched entity.
 
-    std::vector<ObjEntityFace> m_facesTable;                     //< Vector of Face entities.
+    FacesBuffer_t m_facesTable;                           //< Vector of Face entities.
 
-    mutable std::vector<ObjGroup> m_groupTable;                  //< Vector of Groups.
+    std::vector<ObjGroup> m_groupTable;                  //< Vector of Groups.
     std::array<int64_t, 3> m_currentGroupsIdx = {-1, -1, -1};    //< Array of current Groups.
     mutable std::vector<ObjGroup>::iterator m_lastFetchedGroup;  //< Last fetched Group.
 

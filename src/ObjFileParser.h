@@ -33,10 +33,9 @@
 #define __OBJFILEPARSER_H__
 
 #include "Types.h"
+#include "ObjDatabase.h"
 
 #include <memory>
-
-class ObjDatabase;
 
 class ObjFileParser
 {
@@ -46,19 +45,18 @@ public:
       *  @brief  Constructor.
       *
       *  @param  pObjFilePath Obj file path.
-      *  @param  objDB[out] Reference to an Obj Database instance to fill.
       */
-    ObjFileParser(const char* pObjFilePath, ObjDatabase& objDB) :
-        m_pObjFilePath(pObjFilePath), m_objDB(objDB)
+    ObjFileParser(const char* pObjFilePath) :
+        m_pObjFilePath(pObjFilePath)
     {
     }
 
     /**
       *  @brief  Parse an Obj file.
       *
-      *  @return  true If the parsing succeeded.
+      *  @return  An Obj Database instance.
       */
-    bool parseFile(void);
+    ObjDatabase parseFile(void);
 
 private:
 
@@ -125,7 +123,7 @@ private:
                                               "ctech", "stech"};
 
     const char* m_pObjFilePath;
-    ObjDatabase& m_objDB;
+    ObjDatabase m_objDB;
     ElementType m_lastElementType = ElementType::NONE;
 };
 

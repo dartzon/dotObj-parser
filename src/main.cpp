@@ -54,9 +54,9 @@ int main(int argc, char *argv[])
         scale = std::stof(argv[2]);
     }
 
-    ObjDatabase gObjDB;
-    ObjFileParser fp(objFilePath, gObjDB);
-    if(fp.parseFile() == false)
+    ObjFileParser fp(objFilePath);
+    const ObjDatabase objDB = fp.parseFile();
+    if(objDB.isEmpty() == true)
     {
         return (1);
     }
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
             "var normal = null;\nvar color = new THREE.Color( 0xffaa00 );"
             "\nvar materialIndex = 0;\nvar face;\n");
 
-    const VertexBuffer_t& vtxBuffer = gObjDB.getVertexBuffer();
+    const VertexBuffer_t& vtxBuffer = objDB.getVertexBuffer();
     std::for_each(vtxBuffer.cbegin(), vtxBuffer.cend(),
                   [&smtObjFile, scale](const Vertex_t& vtx)
                           {
@@ -81,55 +81,49 @@ int main(int argc, char *argv[])
                                       vtx.m_z * scale);
                           });
 
-    ObjEntity* pEnt = nullptr;
-    while((pEnt = gObjDB.getNextEntity()) != nullptr)
+    for(const ObjEntityFace& fc : objDB)
     {
-        if(pEnt->getType() == ElementType::FACE)
+        IndexBufferRefRange_t idxBufRefR = objDB.getVerticesIndicesList(fc);
+
+        const VerticesIdxOrganization vtxIdxOrg = fc.getVerticesIndicesOrganization();
+        uint8_t step = 1;
+        switch(vtxIdxOrg)
         {
-            ObjEntityFace& fc = *static_cast<ObjEntityFace*>(pEnt);
+        case VerticesIdxOrganization::VGEO : step = 1; break;
 
-            IndexBufferRefRange_t idxBufRefR = gObjDB.getVerticesIndicesList(fc);
-
-            const VerticesIdxOrganization vtxIdxOrg = fc.getVerticesIndicesOrganization();
-            uint8_t step = 1;
-            switch(vtxIdxOrg)
-            {
-            case VerticesIdxOrganization::VGEO : step = 1; break;
-
-            case VerticesIdxOrganization::VGEO_VNORMAL:
-            case VerticesIdxOrganization::VGEO_VTEXTURE : step = 2; break;
+        case VerticesIdxOrganization::VGEO_VNORMAL:
+        case VerticesIdxOrganization::VGEO_VTEXTURE : step = 2; break;
 
 
-            case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL : step = 3; break;
+        case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL : step = 3; break;
 
-            default: break;
-            }
+        default: break;
+        }
 
-            if(fc.isTriangle() == true)
-            {
-                const char* faceCmd = "face = new THREE.Face3( %lu, %lu, %lu, normal, color, "
-                                      "materialIndex );\n"
-                                      "geometry.faces.push( face );\n";
+        if(fc.isTriangle() == true)
+        {
+            const char* faceCmd = "face = new THREE.Face3( %lu, %lu, %lu, normal, color, "
+                                  "materialIndex );\n"
+                                  "geometry.faces.push( face );\n";
 
-                fprintf(smtObjFile.get(), faceCmd, (*idxBufRefR.first) - 1,
-                        *(idxBufRefR.first + step) - 1,
-                        *(idxBufRefR.first + (step * 2)) - 1);
-            }
-            else
-            {
-                const char* faceCmd = "face = new THREE.Face3( %lu, %lu, %lu,"
-                                      " normal, color, materialIndex );\n"
-                                      "geometry.faces.push( face );\n";
+            fprintf(smtObjFile.get(), faceCmd, (*idxBufRefR.first) - 1,
+                    *(idxBufRefR.first + step) - 1,
+                    *(idxBufRefR.first + (step * 2)) - 1);
+        }
+        else
+        {
+            const char* faceCmd = "face = new THREE.Face3( %lu, %lu, %lu,"
+                                  " normal, color, materialIndex );\n"
+                                  "geometry.faces.push( face );\n";
 
-                const size_t v1 = (*idxBufRefR.first) - 1;
-                const size_t v2 = *(idxBufRefR.first + step) - 1;
-                const size_t v3 = *(idxBufRefR.first + (step * 2)) - 1;
-                const size_t v4 = *(idxBufRefR.first + (step * 3)) - 1;
+            const size_t v1 = (*idxBufRefR.first) - 1;
+            const size_t v2 = *(idxBufRefR.first + step) - 1;
+            const size_t v3 = *(idxBufRefR.first + (step * 2)) - 1;
+            const size_t v4 = *(idxBufRefR.first + (step * 3)) - 1;
 
-                fprintf(smtObjFile.get(), faceCmd, v1, v2, v3);
+            fprintf(smtObjFile.get(), faceCmd, v1, v2, v3);
 
-                fprintf(smtObjFile.get(), faceCmd, v1, v3, v4);
-            }
+            fprintf(smtObjFile.get(), faceCmd, v1, v3, v4);
         }
     }
 

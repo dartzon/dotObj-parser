@@ -30,40 +30,42 @@
 #include "ObjFileParser.h"
 
 #include "Utils.h"
-#include "ObjDatabase.h"
 
 #include <algorithm>
 
-bool ObjFileParser::parseFile(void)
+ObjDatabase ObjFileParser::parseFile(void)
 {
     OBJLOG("Obj file parsing started...");
 
     const std::unique_ptr<std::FILE, decltype(&fclose)> smtObjFile(fopen(m_pObjFilePath, "r"),
                                                                    &fclose);
-    if(smtObjFile == nullptr)
-    {
-        OBJLOG("Obj file not found");
 
-        return (false);
+    OBJASSERT(smtObjFile != nullptr, "Obj file not found");
+
+    if(smtObjFile != nullptr)
+    {
+        const uint16_t lineBufferSize = 256;
+        char lineBuffer[lineBufferSize];
+
+        std::string oneLine;
+        oneLine.reserve(lineBufferSize);
+
+        while(fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
+        {
+            oneLine = lineBuffer;
+            parseLine(oneLine);
+        }
+
+        m_objDB.parsingFinished();
+
+        OBJLOG("Obj file parsing ended");
     }
 
-    const uint16_t lineBufferSize = 256;
-    char lineBuffer[lineBufferSize];
-
-    std::string oneLine;
-    oneLine.reserve(lineBufferSize);
-
-    while(fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
-    {
-        oneLine = lineBuffer;
-        parseLine(oneLine);
-    }
-
-    m_objDB.parsingFinished();
-
-    OBJLOG("Obj file parsing ended");
-
-    return (true);
+    // std::move used because:
+    // - Obj Database instance no longer needed by the Parser.
+    // - Returning the instance as lvalue will call the copy ctor because m_objDB
+    //   is an ObjFileParser member.
+    return (std::move(m_objDB));
 }
 
 // =================================================================================================
@@ -286,7 +288,7 @@ void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
 
             vtxIdx = buffersPtrs[bufferPtrIdx] + vtxIdx + 1;
         }
-        
+
         m_objDB.insertIndex(vtxIdx);
         ++idxCount;
     }
@@ -323,4 +325,3 @@ void ObjFileParser::parseGroup(const ElemIDResult_t& elementIDRes)
             m_objDB.insertGroup(std::move(grp));
         }
 }
-
