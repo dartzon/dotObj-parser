@@ -38,20 +38,14 @@ namespace ObjUtils
 void StringUtils::removeSurroundingBlanks(std::string& str)
 {
     // Look for the first non blank character.
-    CStringIterator_t strItr = std::find_if(str.cbegin(), str.cend(), [](const char c)
-                                            {
-                                                return (isblank(c) == 0);
-                                            });
+    CStringIterator_t strItr = std::find_if_not(str.cbegin(), str.cend(), &isblank);
     if(strItr != str.end())
     {
         str.erase(str.cbegin(), strItr);
     }
 
     // Look for the first non blank character starting from the end of the string.
-    RStringIterator_t strRItr = std::find_if_not(str.rbegin(), str.rend(), [](const char c)
-                                                 {
-                                                     return (isspace(c) != 0);
-                                                 });
+    RStringIterator_t strRItr = std::find_if_not(str.rbegin(), str.rend(), &isspace);
     if(strRItr != str.rend())
     {
         // Resize the string to remove blanks.
