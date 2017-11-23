@@ -56,8 +56,6 @@ ObjDatabase ObjFileParser::parseFile(void)
             parseLine(oneLine);
         }
 
-        m_objDB.parsingFinished();
-
         OBJLOG("Obj file parsing ended");
     }
 
@@ -74,7 +72,8 @@ void ObjFileParser::parseLine(const std::string& oneLine)
 {
     ElemIDResult_t elemTypeRes = getElementType(oneLine);
 
-    if(elemTypeRes.first != ElementType::NONE)
+    // The line is either empty or the element is unknown.
+    if(elemTypeRes.second != oneLine.cend())
     {
         // Check if last element was a vertex (or its variants) and current element is not.
         constexpr std::array<ElementType, 4> arr = {ElementType::VERTEX,
@@ -113,7 +112,7 @@ void ObjFileParser::parseElementDataArgs(const ElemIDResult_t& elementIDRes)
         parseFace(elementIDRes);
         break;
 
-    case ElementType::GROUP:
+    case ElementType::GROUP_NAME:
     case ElementType::SMOOTHING_GROUP:
     case ElementType::MERGING_GROUP:
         // case ElementType::OBJECT_NAME:
@@ -129,16 +128,13 @@ void ObjFileParser::parseElementDataArgs(const ElemIDResult_t& elementIDRes)
 ElemIDResult_t ObjFileParser::getElementType(const std::string& oneLine)
 {
     // Skip white spaces at the beginning of the line (Only \t & ' ').
-    CStringIterator_t lineStartItr = std::find_if(oneLine.cbegin(), oneLine.cend(),
-                                                  [](const char c)
-                                                  {
-                                                      return (isblank(c) == 0);
-                                                  });
+    CStringIterator_t lineStartItr = std::find_if_not(oneLine.cbegin(), oneLine.cend(), &isblank);
 
     // Skip this line if it is empty or is a comment line (\t, \f, \n, \r, \v,  ' ').
-    if((isspace(*lineStartItr) != 0) || (*lineStartItr == '#'))
+    if((lineStartItr != oneLine.cend()) &&
+       ((isspace(*lineStartItr) != 0) || (*lineStartItr == '#')))
     {
-        return (std::make_pair(ElementType::NONE, oneLine.cend()));
+        return (std::make_pair(ElementType::VERTEX, oneLine.cend()));
     }
 
     // Go to the next white space (Only \t & ' ').
@@ -148,23 +144,13 @@ ElemIDResult_t ObjFileParser::getElementType(const std::string& oneLine)
     const std::string elementToken(lineStartItr, blankAfterTokenItr);
 
     // Find the element token in the keywords list.
-    const auto keywordMatch = [&elementToken](const char* keyword)
-                              {
-                                  return (elementToken.compare(keyword) == 0);
-                              };
-    KeywordsArray_t::const_iterator keyItr = std::find_if(elementsKeywords.cbegin(),
-                                                          elementsKeywords.cend(),
-                                                          keywordMatch);
+    KeywordsMap_t::const_iterator keyItr = elementsKeywords.find(elementToken);
     if(keyItr == elementsKeywords.cend())
     {
-        return (std::make_pair(ElementType::NONE, oneLine.cend()));
+        return (std::make_pair(ElementType::VERTEX, oneLine.cend()));
     }
 
-    // Get the index of the identified element type and convert it to its enum correspondence.
-    const KeywordsArray_t::difference_type elementTypeIdx = std::distance(elementsKeywords.cbegin(),
-                                                                          keyItr);
-
-    return (std::make_pair(static_cast<ElementType>(elementTypeIdx), blankAfterTokenItr));
+    return (std::make_pair(keyItr->second, blankAfterTokenItr));
 }
 
 // =================================================================================================
@@ -182,11 +168,7 @@ VerticesIdxOrganization ObjFileParser::getIndicesOrganization(const std::string&
     }
     else
     {
-        CStringIterator_t firstBlankItr = std::find_if(args.cbegin(), args.cend(),
-                                                       [](const char c)
-                                                       {
-                                                           return (isblank(c) != 0);
-                                                       });
+        CStringIterator_t firstBlankItr = std::find_if(args.cbegin(), args.cend(), &isblank);
         const size_t countSlashes = std::count(args.cbegin(), firstBlankItr, '/');
 
         switch(countSlashes)
@@ -296,7 +278,7 @@ void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
     OBJASSERT(idxCount <= 12, "Face has too many vertices indices");
 
     ObjEntityFace objFace(m_objDB.getIndexBufferCount() - idxCount, idxCount, vtxIdxOrg);
-    m_objDB.insertEntity(std::move(objFace));
+    m_objDB.insertEntity(objFace, m_currentGroupsIdx);
 }
 
 // =================================================================================================
@@ -308,13 +290,19 @@ void ObjFileParser::parseGroup(const ElemIDResult_t& elementIDRes)
     std::string args(&*elementIDRes.second);
     ObjUtils::StringUtils::removeSurroundingBlanks(args);
 
-    if(elementIDRes.first == ElementType::GROUP || elementIDRes.first == ElementType::OBJECT_NAME)
+    if(elementIDRes.first == ElementType::GROUP_NAME ||
+       elementIDRes.first == ElementType::OBJECT_NAME)
     {
         // Only a group name points to an entity index.
-        const size_t entityTableIdx = (elementIDRes.first == ElementType::GROUP) ?
+        const size_t entityTableIdx = (elementIDRes.first == ElementType::GROUP_NAME) ?
                                       m_objDB.getEntitiesCount() : 0;
         ObjGroup grp(std::move(args), entityTableIdx, elementIDRes.first);
-        m_objDB.insertGroup(std::move(grp));
+        m_objDB.insertGroup(grp);
+
+        // Store this Obj group's index in the current Groups buffer.
+        (elementIDRes.first == ElementType::GROUP_NAME) ?
+            m_currentGroupsIdx[0] = m_objDB.getGroupsCount() - 1 :
+            m_currentGroupsIdx[1] = m_objDB.getGroupsCount() - 1;
     }
     else
         if(elementIDRes.first == ElementType::SMOOTHING_GROUP)
@@ -322,6 +310,9 @@ void ObjFileParser::parseGroup(const ElemIDResult_t& elementIDRes)
             const size_t groupNum = std::stol(args);
 
             ObjGroup grp(groupNum, m_objDB.getEntitiesCount(), 0, elementIDRes.first);
-            m_objDB.insertGroup(std::move(grp));
+            m_objDB.insertGroup(grp);
+
+            // Store this Obj group's index in the current Groups buffer.
+            m_currentGroupsIdx[2] = m_objDB.getGroupsCount() - 1;
         }
 }

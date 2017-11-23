@@ -70,8 +70,7 @@ int main(int argc, char *argv[])
             "var normal = null;\nvar color = new THREE.Color( 0xffaa00 );"
             "\nvar materialIndex = 0;\nvar face;\n");
 
-    const VertexBuffer_t& vtxBuffer = objDB.getVertexBuffer();
-    std::for_each(vtxBuffer.cbegin(), vtxBuffer.cend(),
+    std::for_each(vertexCBegin(objDB), vertexCEnd(objDB),
                   [&smtObjFile, scale](const Vertex_t& vtx)
                           {
                               const char* cmd = "geometry.vertices.push( new THREE.Vector3("

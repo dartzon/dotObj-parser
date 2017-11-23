@@ -50,8 +50,13 @@ public:
     ObjEntityFace(const size_t indexBufferIdx, const size_t indicesOffset,
                   const VerticesIdxOrganization eParamsOrganization);
 
-    ObjEntityFace(const ObjEntityFace&) = default;
-    ObjEntityFace(ObjEntityFace&&) = default;
+    /**
+      *  @brief  Move constructor.
+      */
+    ObjEntityFace(ObjEntityFace&& face) noexcept :
+        ObjEntity(std::move(face)), WithVerticesIndices(std::move(face))
+    {
+    }
 
 
     // Accessors ===================================================================================
@@ -67,5 +72,9 @@ private:
 
     bool m_isTriangle;    //< Is this face a triangle?
 };
+
+// Typedefs ========================================================================================
+using FacesBuffer_t = std::vector<ObjEntityFace>;
+using FacesRefRange_t = std::pair<FacesBuffer_t::const_iterator, FacesBuffer_t::const_iterator>;
 
 #endif /* __OBJENTITYFACE_H__ */

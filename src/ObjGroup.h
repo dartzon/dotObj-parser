@@ -46,7 +46,7 @@ public:
       *  @param  entityTableIdx Index of the first included entity.
       *  @param  eGroupType Group type.
       */
-    ObjGroup(std::string&& groupName, const size_t entityTableIdx, const ElementType eGroupType) :
+    ObjGroup(std::string groupName, const size_t entityTableIdx, const ElementType eGroupType) :
         m_groupName(std::move(groupName)), m_entityTableIdx(entityTableIdx),
         m_resolution(0), m_eGroupType(eGroupType)
     {
@@ -67,13 +67,12 @@ public:
     {
     }
 
-    ObjGroup(const ObjGroup&) = default;
-    ObjGroup(ObjGroup&& refGrp) = default;
+    /**
+      *  @brief  Default move constructor.
+      */
+    ObjGroup(ObjGroup&& refGrp) noexcept = default;
 
     // Operators ===================================================================================
-
-    ObjGroup& operator=(const ObjGroup&) = default;
-    ObjGroup& operator=(ObjGroup&& refGrp) = default;
 
     /**
       *  @brief  Include one more entity in this group.
@@ -134,5 +133,8 @@ private:
     uint32_t m_resolution;           //< Resolution of the Merging group (mg).
     ElementType m_eGroupType;        //< Group type.
 };
+
+// Typedefs ========================================================================================
+using GroupsBuffer_t = std::vector<ObjGroup>;
 
 #endif /* __OBJGROUP_H__ */

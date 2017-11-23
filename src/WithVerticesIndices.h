@@ -54,6 +54,11 @@ public:
     }
 
     /**
+      *  @brief  Default move constructor.
+      */
+    WithVerticesIndices(WithVerticesIndices&&) noexcept = default;
+
+    /**
       *  @brief  Returns a pair representing a range of vertices indices.
       *
       *  @return Pair of vertices indices [start, end].

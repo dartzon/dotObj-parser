@@ -46,22 +46,21 @@ void ObjDatabase::insertVertex(const Vertex_t& vtx, const ElementType eVtxType)
 
 // =================================================================================================
 
-const VerticesRefList_t& ObjDatabase::getVerticesList(const WithVerticesIndices& elemWithVertices)
+VerticesRefList_t ObjDatabase::getVerticesList(const WithVerticesIndices& elemWithVertices) const
 {
     const VerticesIdxOrganization vtxIdxOrg = elemWithVertices.getVerticesIndicesOrganization();
     const IndexBufferRange_t vtxIdxRange = elemWithVertices.getVerticesIndicesRange();
 
-    const std::array<VertexBuffer_t*, 3> buffersPtrs = {&m_VBuffer, &m_TexUVBuffer,
-                                                        &m_NormalBuffer};
+    const std::array<const VertexBuffer_t*, 3> buffersPtrs = {&m_VBuffer, &m_TexUVBuffer,
+                                                              &m_NormalBuffer};
     uint8_t bufferPtrIdx = 0;
-
-    m_lastReturnedVertices.clear();
+    VerticesRefList_t verticesRefList;
 
     std::for_each(m_IdxBuffer.cbegin() + vtxIdxRange.first,
                   m_IdxBuffer.cbegin() + vtxIdxRange.first + vtxIdxRange.second,
-                  [this, vtxIdxOrg, &buffersPtrs, &bufferPtrIdx](const size_t& idxVtx)
+                  [vtxIdxOrg, &buffersPtrs, &bufferPtrIdx, &verticesRefList](const size_t& idxVtx)
                   {
-                      VertexBuffer_t* currentBuff = buffersPtrs[bufferPtrIdx];;
+                      const VertexBuffer_t* pCurrentBuff = buffersPtrs[bufferPtrIdx];;
 
                       switch(vtxIdxOrg)
                       {
@@ -80,10 +79,10 @@ const VerticesRefList_t& ObjDatabase::getVerticesList(const WithVerticesIndices&
                       default: break;
                       }
 
-                      m_lastReturnedVertices.push_back(&(*currentBuff)[idxVtx - 1]);
+                      verticesRefList.push_back(&(*pCurrentBuff)[idxVtx - 1]);
                   });
 
-    return (m_lastReturnedVertices);
+    return (verticesRefList);
 }
 
 // =================================================================================================
@@ -99,17 +98,17 @@ IndexBufferRefRange_t ObjDatabase::getVerticesIndicesList(const WithVerticesIndi
 
 // =================================================================================================
 
-EntitiesRefRange_t ObjDatabase::getEntitiesInGroup(const ObjGroup& group) const
+FacesRefRange_t ObjDatabase::getEntitiesInGroup(const ObjGroup& group) const
 {
     const EntitiesIndexRange_t entIdxRange = group.getEntitiesIndicesRange();
 
-    return(std::make_pair(m_entityTable.cbegin() + entIdxRange.first,
-                          m_entityTable.cbegin() + entIdxRange.first + entIdxRange.second));
+    return(std::make_pair(m_facesTable.cbegin() + entIdxRange.first,
+                          m_facesTable.cbegin() + entIdxRange.first + entIdxRange.second));
 }
 
 // =================================================================================================
 
-void ObjDatabase::insertEntity(ObjEntity&& obj)
+void ObjDatabase::insertEntity(ObjEntity& obj, const std::array<int64_t, 3>& currentGroupsIdx)
 {
     // Insert the Obj entity in its proper container.
     switch(obj.getType())
@@ -125,7 +124,7 @@ void ObjDatabase::insertEntity(ObjEntity&& obj)
     };
 
     // Update the count of included Obj entities for each current Obj group.
-    std::for_each(m_currentGroupsIdx.cbegin(), m_currentGroupsIdx.cend(),
+    std::for_each(currentGroupsIdx.cbegin(), currentGroupsIdx.cend(),
                   [this](const int64_t idx)
                   {
                       if(idx >= 0)
@@ -135,62 +134,54 @@ void ObjDatabase::insertEntity(ObjEntity&& obj)
                   });
 }
 
-// =================================================================================================
-
-void ObjDatabase::insertGroup(ObjGroup&& grp)
+// Iterators free functions ========================================================================
+ObjDatabase::VertexIterator vertexBegin(ObjDatabase& db) noexcept
 {
-    // Store this Obj group's index in the current Groups buffer.
-    switch(grp.getType())
-    {
-    case ElementType::GROUP:
-        m_currentGroupsIdx[0] = m_groupTable.size();
-        break;
-
-    case ElementType::SMOOTHING_GROUP:
-        m_currentGroupsIdx[1] = m_groupTable.size();
-        break;
-
-    case ElementType::MERGING_GROUP:
-        m_currentGroupsIdx[2] = m_groupTable.size();
-        break;
-
-    default: break;
-    }
-
-    // Add the Obj group to the group table.
-    m_groupTable.push_back(std::move(grp));
+    return (db.m_VBuffer.begin());
+}
+ObjDatabase::VertexIterator vertexEnd(ObjDatabase& db) noexcept
+{
+    return (db.m_VBuffer.end());
+}
+ObjDatabase::VertexConstIterator vertexBegin(const ObjDatabase& db) noexcept
+{
+    return (db.m_VBuffer.cbegin());
+}
+ObjDatabase::VertexConstIterator vertexEnd(const ObjDatabase& db) noexcept
+{
+    return (db.m_VBuffer.cend());
+}
+ObjDatabase::VertexConstIterator vertexCBegin(const ObjDatabase& db) noexcept
+{
+    return (db.m_VBuffer.cbegin());
+}
+ObjDatabase::VertexConstIterator vertexCEnd(const ObjDatabase& db) noexcept
+{
+    return (db.m_VBuffer.cend());
 }
 
-// =================================================================================================
 
-ObjGroup* ObjDatabase::getNextGroup(void) const
+ObjDatabase::GroupsIterator groupBegin(ObjDatabase& db) noexcept
 {
-    ObjGroup* pObjGrp = nullptr;
-
-    if(m_lastFetchedGroup != m_groupTable.cend())
-    {
-        pObjGrp = &*m_lastFetchedGroup++;
-    }
-
-    return (pObjGrp);
+    return (db.m_groupTable.begin());
 }
-
-// =================================================================================================
-
-void ObjDatabase::sync(void)
+ObjDatabase::GroupsIterator groupEnd(ObjDatabase& db) noexcept
 {
-    if(m_DBSynced == false)
-    {
-        // Copy Obj entities' addresses to the entity table.
-        for(ObjEntityFace& face : m_facesTable)
-        {
-            m_entityTable.push_back(&face);
-        }
-
-        m_lastFetchedEntity = m_entityTable.begin();
-        m_lastFetchedGroup = m_groupTable.begin();
-
-        m_DBSynced = true;
-    }
+    return (db.m_groupTable.end());
 }
-
+ObjDatabase::GroupsConstIterator groupBegin(const ObjDatabase& db) noexcept
+{
+    return (db.m_groupTable.cbegin());
+}
+ObjDatabase::GroupsConstIterator groupEnd(const ObjDatabase& db) noexcept
+{
+    return (db.m_groupTable.cend());
+}
+ObjDatabase::GroupsConstIterator groupCBegin(const ObjDatabase& db) noexcept
+{
+    return (db.m_groupTable.cbegin());
+}
+ObjDatabase::GroupsConstIterator groupCEnd(const ObjDatabase& db) noexcept
+{
+    return (db.m_groupTable.cend());
+}

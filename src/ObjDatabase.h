@@ -79,7 +79,7 @@ public:
       *  @param  elemWithVertices Reference to Obj entity.
       *  @return  Const reference to a vector of pointers to vertices.
       */
-    const VerticesRefList_t& getVerticesList(const WithVerticesIndices& elemWithVertices);
+    VerticesRefList_t getVerticesList(const WithVerticesIndices& elemWithVertices) const;
 
     /**
       *  @brief  Return a pair of iterators to the first and the last vertices indices.
@@ -90,32 +90,30 @@ public:
     IndexBufferRefRange_t getVerticesIndicesList(const WithVerticesIndices& elemWithVertices) const;
 
     /**
-      *  @brief  Return a list of pointers to entities included in an Obj Group.
+      *  @brief  Return a list entities included in an Obj Group.
       *
       *  @param  group Concerned group.
-      *  @return  Const reference to a vector of pointers to vertices.
+      *  @return range of entites.
       */
-    EntitiesRefRange_t getEntitiesInGroup(const ObjGroup& group) const;
+    FacesRefRange_t getEntitiesInGroup(const ObjGroup& group) const;
+
+    /**
+      *  @brief  Insert a new Obj entity. The object will be moved.
+      *
+      *  @param  obj Obj entity to be inserted.
+      *  @param  currentGroupsIdx array of the currently active groups.
+      */
+    void insertEntity(ObjEntity& obj, const std::array<int64_t, 3>& currentGroupsIdx);
 
     /**
       *  @brief  Insert a new Obj entity. The object will be moved.
       *
       *  @param  obj Obj entity to be inserted.
       */
-    void insertEntity(ObjEntity&& obj);
-
-    /**
-      *  @brief  Insert a new Obj entity. The object will be moved.
-      *
-      *  @param  obj Obj entity to be inserted.
-      */
-    void insertGroup(ObjGroup&& grp);
-
-    /**
-      *  @brief  Get the next group in the database.
-      *  @return Pointer to next Group.
-      */
-    ObjGroup* getNextGroup(void) const;
+    inline void insertGroup(ObjGroup& grp)
+    {
+        m_groupTable.push_back(std::move(grp));
+    }
 
     /**
       *  @brief  Insert a new index in the index buffer.
@@ -128,14 +126,6 @@ public:
     }
 
     /**
-      *  @brief  Notify that the Obj file parsing is over.
-      */
-    inline void parsingFinished(void)
-    {
-        sync();
-    }
-
-    /**
       *  @brief  Pre-allocate memory for the next wave of vertices indices.
       */
     inline void reserveIndexBufferMemory(void)
@@ -145,7 +135,6 @@ public:
 
     // Iterators functions =========================================================================
 
-    using FacesBuffer_t = std::vector<ObjEntityFace>;
     FacesBuffer_t::iterator begin(void) noexcept
     {
         return (m_facesTable.begin());
@@ -173,6 +162,24 @@ public:
         return (m_facesTable.cend());
     }
 
+    using VertexIterator = VertexBuffer_t::iterator;
+    using VertexConstIterator = VertexBuffer_t::const_iterator;
+    friend VertexIterator vertexBegin(ObjDatabase& db) noexcept;
+    friend VertexIterator vertexEnd(ObjDatabase& db) noexcept;
+    friend VertexConstIterator vertexBegin(const ObjDatabase& db) noexcept;
+    friend VertexConstIterator vertexEnd(const ObjDatabase& db) noexcept;
+    friend VertexConstIterator vertexCBegin(const ObjDatabase& db) noexcept;
+    friend VertexConstIterator vertexCEnd(const ObjDatabase& db) noexcept;
+
+    using GroupsIterator = GroupsBuffer_t::iterator;
+    using GroupsConstIterator = GroupsBuffer_t::const_iterator;
+    friend GroupsIterator groupBegin(ObjDatabase& db) noexcept;
+    friend GroupsIterator groupEnd(ObjDatabase& db) noexcept;
+    friend GroupsConstIterator groupBegin(const ObjDatabase& db) noexcept;
+    friend GroupsConstIterator groupEnd(const ObjDatabase& db) noexcept;
+    friend GroupsConstIterator groupCBegin(const ObjDatabase& db) noexcept;
+    friend GroupsConstIterator groupCEnd(const ObjDatabase& db) noexcept;
+
     // Accessors ===================================================================================
 
     inline size_t getGroupsCount(void) const
@@ -196,11 +203,6 @@ public:
         return (m_totalEntitiesCount);
     }
 
-    inline const VertexBuffer_t& getVertexBuffer(void) const
-    {
-        return (m_VBuffer);
-    }
-
     inline bool isEmpty(void) const
     {
         return (m_facesTable.size() == 0);
@@ -208,24 +210,7 @@ public:
 
 private:
 
-    /**
-      *  @brief  Register pointers to Obj entities into the entity table.
-      *  @details This function should be called after all entities have been created and stored
-      *           to get valid pointers (std containers' resizing invalidates pointers and
-      *           iterators).
-      */
-    void sync(void);
-
     // Members =====================================================================================
-
-    EntityRefList_t m_entityTable;                         //< Queue of pointers to all the entities.
-    mutable EntityRefList_t::iterator m_lastFetchedEntity; //< Last fetched entity.
-
-    FacesBuffer_t m_facesTable;                           //< Vector of Face entities.
-
-    std::vector<ObjGroup> m_groupTable;                  //< Vector of Groups.
-    std::array<int64_t, 3> m_currentGroupsIdx = {-1, -1, -1};    //< Array of current Groups.
-    mutable std::vector<ObjGroup>::iterator m_lastFetchedGroup;  //< Last fetched Group.
 
     VertexBuffer_t m_VBuffer;          //< Vertex buffer.
     TextureUVBuffer_t m_TexUVBuffer;   //< Vertex texture buffer.
@@ -233,10 +218,27 @@ private:
 
     IndexBuffer_t m_IdxBuffer;         //< Index buffer.
 
-    VerticesRefList_t m_lastReturnedVertices; //< List of vertices to be returned on request.
+    FacesBuffer_t m_facesTable;        //< Vector of Face entities.
+
+    GroupsBuffer_t m_groupTable;       //< Vector of Groups.
 
     size_t m_totalEntitiesCount = 0;   //< Total number of entities.
-    bool m_DBSynced = false;           //< Was the entityTable synced?
 };
+
+// Iterators free functions ========================================================================
+
+ObjDatabase::VertexIterator vertexBegin(ObjDatabase& db) noexcept;
+ObjDatabase::VertexIterator vertexEnd(ObjDatabase& db) noexcept;
+ObjDatabase::VertexConstIterator vertexBegin(const ObjDatabase& db) noexcept;
+ObjDatabase::VertexConstIterator vertexEnd(const ObjDatabase& db) noexcept;
+ObjDatabase::VertexConstIterator vertexCBegin(const ObjDatabase& db) noexcept;
+ObjDatabase::VertexConstIterator vertexCEnd(const ObjDatabase& db) noexcept;
+
+ObjDatabase::GroupsIterator groupBegin(ObjDatabase& db) noexcept;
+ObjDatabase::GroupsIterator groupEnd(ObjDatabase& db) noexcept;
+ObjDatabase::GroupsConstIterator groupBegin(const ObjDatabase& db) noexcept;
+ObjDatabase::GroupsConstIterator groupEnd(const ObjDatabase& db) noexcept;
+ObjDatabase::GroupsConstIterator groupCBegin(const ObjDatabase& db) noexcept;
+ObjDatabase::GroupsConstIterator groupCEnd(const ObjDatabase& db) noexcept;
 
 #endif /* __OBJDATABASE_H__ */

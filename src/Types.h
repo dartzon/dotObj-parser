@@ -36,7 +36,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
-#include <array>
+#include <unordered_map>
 #include <string>
 
 // Represents a 2D/3D coordinates.
@@ -51,7 +51,7 @@ using TextureUVBuffer_t = std::vector<Vertex_t>;
 using NormalBuffer_t = std::vector<Vertex_t>;
 
 // List of vertices.
-using VerticesRefList_t = std::vector<Vertex_t*>;
+using VerticesRefList_t = std::vector<const Vertex_t*>;
 using IndexBuffer_t = std::vector<size_t>;
 using IndexBufferRange_t = std::pair<size_t, size_t>;
 using IndexBufferRefRange_t = std::pair<IndexBuffer_t::const_iterator,
@@ -65,8 +65,8 @@ using EntitiesRefRange_t = std::pair<EntityRefList_t::const_iterator,
                                      EntityRefList_t::const_iterator>;
 
 // Wavefront Obj keyword dictionary type.
-template<size_t sz> using ObjKeywords_t = std::array<const char*, sz>;
-using KeywordsArray_t = ObjKeywords_t<35>;
+enum class ElementType : uint8_t;
+using KeywordsMap_t = std::unordered_map<std::string, ElementType>;
 
 // std::string iterators types.
 using CStringIterator_t = std::string::const_iterator;
@@ -74,7 +74,6 @@ using RStringIterator_t = std::string::reverse_iterator;
 
 // Element type + std::string iterator to its 1st parameter.
 // Since C++11 std::string is contiguous in memory, it's safe to create one from &*iterator.
-enum class ElementType : int8_t;
 using ElemIDResult_t = std::pair<ElementType, CStringIterator_t>;
 
 /* ============================================================================================== */
@@ -94,20 +93,43 @@ struct Coordinates3D
 /**
   *  @brief .obj file's elements' types.
   */
-enum class ElementType : int8_t
+enum class ElementType : uint8_t
 {
-    NONE = -1,            //< ??
     VERTEX = 0,           //< v
     VERTEX_TEXTURE,       //< vt
     VERTEX_NORMAL,        //< vn
     VERTEX_PARAM_SPACE,   //< vp
-    POINT = 8,            //< p
+    DEGREE,               //< deg
+    BASIC_MATRIX,         //< bmat
+    STEP_SIZE,            //< step
+    PARAM_CURVE_SURFACE,  //< ctype
+    POINT,                //< p
     LINE,                 //< l
     FACE,                 //< f
-    GROUP = 21,           //< g
+    CURVE,                //< curv
+    CURVE2D,              //< curv2
+    SURFACE,              //< surf
+    PARAM_VAL,            //< parm
+    OUT_LOOP,             //< trim
+    IN_LOOP,              //< hole
+    SPECIAL_CURVE,        //< scrv
+    SPECIAL_POINT,        //< sp
+    END_STAMTEMENT,       //< end
+    CONNECT,              //< con
+    GROUP_NAME,           //< g
     SMOOTHING_GROUP,      //< s
     MERGING_GROUP,        //< mg
-    OBJECT_NAME           //< o
+    OBJECT_NAME,          //< o
+    BEVEL_INTERPOL,       //< bevel
+    COLOR_INTERPOL,       //< c_interp
+    DISSOLVE_INTERPOL,    //< d_interp
+    LOD,                  //< lod
+    MATERIAL_NAME,        //< usemtl
+    MATERIAL_LIB,         //< mtllib
+    SHADOW_CASTING,       //< shadow_obj
+    RAY_TRACING,          //< trace_obj
+    CURVE_APPROX_TECH,    //< ctech
+    SURFACE_APPROX_TECH,  //< stech
 };
 
 /* ============================================================================================== */
@@ -117,9 +139,8 @@ enum class ElementType : int8_t
   *         numbers that reference vertex data.These numbers are the reference
   *         numbers for a geometric vertex, a texture vertex, and a vertex normal.
   */
-enum class VerticesIdxOrganization : int8_t
+enum class VerticesIdxOrganization : uint8_t
 {
-    NONE = -1,             //< No indices.
     VGEO = 0,              //< Geometric vertex index only.
     VGEO_VTEXTURE,         //< Geometric vertex + Vertex texture.
     VGEO_VNORMAL,          //< Geometric vertex + Vertex normal.

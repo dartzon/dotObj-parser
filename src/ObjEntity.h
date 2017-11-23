@@ -51,6 +51,11 @@ public:
     {
     }
 
+    /**
+      *  @brief  Default move constructor.
+      */
+    ObjEntity(ObjEntity&&) noexcept = default;
+
     // Accessors ===================================================================================
 
     size_t getID(void) const
