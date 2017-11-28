@@ -296,7 +296,7 @@ void ObjFileParser::parseGroup(const ElemIDResult_t& elementIDRes)
         // Only a group name points to an entity index.
         const size_t entityTableIdx = (elementIDRes.first == ElementType::GROUP_NAME) ?
                                       m_objDB.getEntitiesCount() : 0;
-        ObjGroup grp(std::move(args), entityTableIdx, elementIDRes.first);
+        ObjGroup grp(args, entityTableIdx, elementIDRes.first);
         m_objDB.insertGroup(grp);
 
         // Store this Obj group's index in the current Groups buffer.

@@ -46,7 +46,7 @@ public:
       *  @param  entityTableIdx Index of the first included entity.
       *  @param  eGroupType Group type.
       */
-    ObjGroup(std::string groupName, const size_t entityTableIdx, const ElementType eGroupType) :
+    ObjGroup(std::string& groupName, const size_t entityTableIdx, const ElementType eGroupType) :
         m_groupName(std::move(groupName)), m_entityTableIdx(entityTableIdx),
         m_resolution(0), m_eGroupType(eGroupType)
     {
