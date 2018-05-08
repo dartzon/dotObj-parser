@@ -4,17 +4,30 @@ project(dotObjParser)
 # Enable c, and c++ language
 enable_language(C CXX)
 
-include(CheckIncludeFile)
-include(CheckIncludeFileCXX)
-include(CheckIncludeFiles)
-include(ExternalProject)
+###############################################################################
+## Use C++ 14.
+###############################################################################
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
+###############################################################################
+## Output directories.
+###############################################################################
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 ###############################################################################
-## Enable warnings
+## Various flags.
+###############################################################################
+include(CheckIncludeFile)
+include(CheckIncludeFileCXX)
+include(CheckIncludeFiles)
+include(ExternalProject)
+
+###############################################################################
+## Enable all warnings and warnings as errors.
 ###############################################################################
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   # using Clang
@@ -26,22 +39,23 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Wall /WX")
 endif()
 
-###############################################################################
-## Target definitions
-###############################################################################
-if(DEFINED BUILD_TESTS)
-  file(GLOB_RECURSE org_SRC src/*.cpp src/*.h)
-  set(org_SRC_lst ${org_SRC})
-  list(REMOVE_ITEM org_SRC_lst ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 
-  file(GLOB_RECURSE tests_SRC tests/*.cpp tests/*.h)
-  add_executable(objparser_tests ${tests_SRC} ${org_SRC_lst})
-  target_compile_options(objparser_tests PUBLIC -std=c++14 $<$<CONFIG:DEBUG>:-DOBJ_DEBUG>)
-  target_include_directories(objparser_tests PUBLIC src/ tests/)
-else()
-  file(GLOB_RECURSE dotObjParser_SRC src/*.cpp src/*.h)
-  add_executable(objparser ${dotObjParser_SRC})
-  target_compile_options(objparser PUBLIC -std=c++14 $<$<CONFIG:DEBUG>:-DOBJ_DEBUG>)
-  target_include_directories(objparser PUBLIC src/)
+###############################################################################
+## Target definitions.
+###############################################################################
+file(GLOB_RECURSE PROJECT_SRC_LST ${PROJECT_SOURCE_DIR}/src/*.h ${PROJECT_SOURCE_DIR}/src/*.cpp)
+add_executable(objparser ${PROJECT_SRC_LST})
+target_compile_options(objparser PUBLIC $<$<CONFIG:DEBUG>:-DPROJECT_NAME_DEBUG>)
+target_include_directories(objparser PUBLIC ${PROJECT_SOURCE_DIR}/src/)
+
+###############################################################################
+## Unit test target.
+###############################################################################
+option(BUILD_TESTS "Build unit tests" OFF)
+
+if(BUILD_TESTS)
+  enable_testing()
+  include_directories(${PROJECT_SOURCE_DIR}/src)
+  set(PROJECT_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+  add_subdirectory(tests)
 endif()
-
