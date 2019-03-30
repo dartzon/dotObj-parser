@@ -1,31 +1,27 @@
-// =============================================================================
-// Copyright (c) 2017 Othmane AIT EL CADI
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-// =============================================================================
+/// Copyright (c) 2017 - present    Othmane AIT EL CADI <dartzon@gmail.com>
+///
+/// Permission is hereby granted, free of charge, to any person obtaining a copy
+/// of this software and associated documentation files (the "Software"), to deal
+/// in the Software without restriction, including without limitation the rights
+/// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+/// copies of the Software, and to permit persons to whom the Software is
+/// furnished to do so, subject to the following conditions:
+///
+/// The above copyright notice and this permission notice shall be included in all
+/// copies or substantial portions of the Software.
+///
+/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+/// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+/// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+/// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+/// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+/// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+/// SOFTWARE.
 
-/*
- * \file      ObjFileParser.cpp
- *
- * \author    Othmane AIT EL CADI - dartzon@gmail.com
- * \date      08-11-2017
- */
+/// \file      ObjFileParser.cpp
+///
+/// \author    Othmane AIT EL CADI - <dartzon@gmail.com>
+/// \date      08-11-2017
 
 #include "ObjFileParser.h"
 
@@ -33,7 +29,7 @@
 
 #include <algorithm>
 
-ObjDatabase ObjFileParser::parseFile(void)
+ObjDatabase ObjFileParser::parseFile()
 {
     OBJLOG("Obj file parsing started...");
 
@@ -42,7 +38,7 @@ ObjDatabase ObjFileParser::parseFile(void)
 
     OBJASSERT(smtObjFile != nullptr, "Obj file not found");
 
-    if(smtObjFile != nullptr)
+    if (smtObjFile != nullptr)
     {
         const uint16_t lineBufferSize = 256;
         char lineBuffer[lineBufferSize];
@@ -50,7 +46,7 @@ ObjDatabase ObjFileParser::parseFile(void)
         std::string oneLine;
         oneLine.reserve(lineBufferSize);
 
-        while(fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
+        while (fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
         {
             oneLine = lineBuffer;
             parseLine(oneLine);
@@ -63,7 +59,7 @@ ObjDatabase ObjFileParser::parseFile(void)
     // - Obj Database instance no longer needed by the Parser.
     // - Returning the instance as lvalue will call the copy ctor because m_objDB
     //   is an ObjFileParser member.
-    return (std::move(m_objDB));
+    return std::move(m_objDB);
 }
 
 // =================================================================================================
@@ -73,16 +69,16 @@ void ObjFileParser::parseLine(const std::string& oneLine)
     ElemIDResult_t elemTypeRes = getElementType(oneLine);
 
     // The line is either empty or the element is unknown.
-    if(elemTypeRes.second != oneLine.cend())
+    if (elemTypeRes.second != oneLine.cend())
     {
         // Check if last element was a vertex (or its variants) and current element is not.
         constexpr std::array<ElementType, 4> arr = {ElementType::VERTEX,
                                                     ElementType::VERTEX_TEXTURE,
                                                     ElementType::VERTEX_NORMAL,
                                                     ElementType::VERTEX_PARAM_SPACE};
-        if((m_lastElementType != elemTypeRes.first) &&
-           (std::find(arr.cbegin(), arr.cend(), m_lastElementType) != arr.cend()) &&
-           (std::find(arr.cbegin(), arr.cend(), elemTypeRes.first) == arr.cend()))
+        if ((m_lastElementType != elemTypeRes.first) &&
+            (std::find(arr.cbegin(), arr.cend(), m_lastElementType) != arr.cend()) &&
+            (std::find(arr.cbegin(), arr.cend(), elemTypeRes.first) == arr.cend()))
         {
             // Pre-allocate memory for next wave of vertices indices.
             m_objDB.reserveIndexBufferMemory();
@@ -99,18 +95,14 @@ void ObjFileParser::parseLine(const std::string& oneLine)
 
 void ObjFileParser::parseElementDataArgs(const ElemIDResult_t& elementIDRes)
 {
-    switch(elementIDRes.first)
+    switch (elementIDRes.first)
     {
     case ElementType::VERTEX:
     case ElementType::VERTEX_TEXTURE:
     case ElementType::VERTEX_NORMAL:
-    case ElementType::VERTEX_PARAM_SPACE:
-        parseVertex(elementIDRes);
-        break;
+    case ElementType::VERTEX_PARAM_SPACE: parseVertex(elementIDRes); break;
 
-    case ElementType::FACE:
-        parseFace(elementIDRes);
-        break;
+    case ElementType::FACE: parseFace(elementIDRes); break;
 
     case ElementType::GROUP_NAME:
     case ElementType::SMOOTHING_GROUP:
@@ -131,10 +123,10 @@ ElemIDResult_t ObjFileParser::getElementType(const std::string& oneLine)
     CStringIterator_t lineStartItr = std::find_if_not(oneLine.cbegin(), oneLine.cend(), &isblank);
 
     // Skip this line if it is empty or is a comment line (\t, \f, \n, \r, \v,  ' ').
-    if((lineStartItr != oneLine.cend()) &&
-       ((isspace(*lineStartItr) != 0) || (*lineStartItr == '#')))
+    if ((lineStartItr != oneLine.cend()) &&
+        ((isspace(*lineStartItr) != 0) || (*lineStartItr == '#')))
     {
-        return (std::make_pair(ElementType::VERTEX, oneLine.cend()));
+        return std::make_pair(ElementType::VERTEX, oneLine.cend());
     }
 
     // Go to the next white space (Only \t & ' ').
@@ -145,12 +137,12 @@ ElemIDResult_t ObjFileParser::getElementType(const std::string& oneLine)
 
     // Find the element token in the keywords list.
     KeywordsMap_t::const_iterator keyItr = elementsKeywords.find(elementToken);
-    if(keyItr == elementsKeywords.cend())
+    if (keyItr == elementsKeywords.cend())
     {
-        return (std::make_pair(ElementType::VERTEX, oneLine.cend()));
+        return std::make_pair(ElementType::VERTEX, oneLine.cend());
     }
 
-    return (std::make_pair(keyItr->second, blankAfterTokenItr));
+    return std::make_pair(keyItr->second, blankAfterTokenItr);
 }
 
 // =================================================================================================
@@ -161,7 +153,7 @@ VerticesIdxOrganization ObjFileParser::getIndicesOrganization(const std::string&
     VerticesIdxOrganization vtxIdxOrg = VerticesIdxOrganization::VGEO;
 
     const size_t doubleSlashesPos = args.find("//");
-    if(doubleSlashesPos != std::string::npos)
+    if (doubleSlashesPos != std::string::npos)
     {
         // 2 contiguous slashes found, geometric vertex index and vertex normal index available.
         vtxIdxOrg = VerticesIdxOrganization::VGEO_VNORMAL;
@@ -171,7 +163,7 @@ VerticesIdxOrganization ObjFileParser::getIndicesOrganization(const std::string&
         CStringIterator_t firstBlankItr = std::find_if(args.cbegin(), args.cend(), &isblank);
         const size_t countSlashes = std::count(args.cbegin(), firstBlankItr, '/');
 
-        switch(countSlashes)
+        switch (countSlashes)
         {
         case 1:
             // 1 slash found, geometric vertex index and vertex texture index available.
@@ -183,12 +175,11 @@ VerticesIdxOrganization ObjFileParser::getIndicesOrganization(const std::string&
             vtxIdxOrg = VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL;
             break;
 
-        default:
-            OBJASSERT(false, "Too many indices references");
+        default: OBJASSERT(false, "Too many indices references");
         }
     }
 
-    return (vtxIdxOrg);
+    return vtxIdxOrg;
 }
 
 // =================================================================================================
@@ -211,7 +202,7 @@ void ObjFileParser::parseVertex(const ElemIDResult_t& elementIDRes)
     args.erase(args.cbegin(), args.cbegin() + processedCharsCount);
 
     // Check if the 3rd parameter exists.
-    if(args.size() > 0)
+    if (args.size() > 0)
     {
         vtx.m_z = std::stof(args, &processedCharsCount);
     }
@@ -237,21 +228,20 @@ void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
     size_t idxCount = 0;
     size_t pos = 0;
 
-
     const std::array<size_t, 3> buffersPtrs = {m_objDB.getIndexBufferCount(),
                                                m_objDB.getTextureUVIndexBufferCount(),
                                                m_objDB.getVertexNormalIndexBufferCount()};
     uint8_t bufferPtrIdx = 0;
 
-    while(pos < args.size())
+    while (pos < args.size())
     {
         args.erase(args.cbegin(), args.cbegin() + pos);
         int64_t vtxIdx = std::stol(args, &pos);
 
         // Negative indices refere to the last nth position in a buffer = buffer.size - idx.
-        if(vtxIdx < 0)
+        if (vtxIdx < 0)
         {
-            switch(vtxIdxOrg)
+            switch (vtxIdxOrg)
             {
             case VerticesIdxOrganization::VGEO_VTEXTURE:
                 bufferPtrIdx = (bufferPtrIdx == 0) ? 1 : 0;
@@ -290,12 +280,13 @@ void ObjFileParser::parseGroup(const ElemIDResult_t& elementIDRes)
     std::string args(&*elementIDRes.second);
     ObjUtils::StringUtils::removeSurroundingBlanks(args);
 
-    if(elementIDRes.first == ElementType::GROUP_NAME ||
-       elementIDRes.first == ElementType::OBJECT_NAME)
+    if (elementIDRes.first == ElementType::GROUP_NAME ||
+        elementIDRes.first == ElementType::OBJECT_NAME)
     {
         // Only a group name points to an entity index.
         const size_t entityTableIdx = (elementIDRes.first == ElementType::GROUP_NAME) ?
-                                      m_objDB.getEntitiesCount() : 0;
+                                          m_objDB.getEntitiesCount() :
+                                          0;
         ObjGroup grp(args, entityTableIdx, elementIDRes.first);
         m_objDB.insertGroup(grp);
 
@@ -304,15 +295,14 @@ void ObjFileParser::parseGroup(const ElemIDResult_t& elementIDRes)
             m_currentGroupsIdx[0] = m_objDB.getGroupsCount() - 1 :
             m_currentGroupsIdx[1] = m_objDB.getGroupsCount() - 1;
     }
-    else
-        if(elementIDRes.first == ElementType::SMOOTHING_GROUP)
-        {
-            const size_t groupNum = std::stol(args);
+    else if (elementIDRes.first == ElementType::SMOOTHING_GROUP)
+    {
+        const size_t groupNum = std::stol(args);
 
-            ObjGroup grp(groupNum, m_objDB.getEntitiesCount(), 0, elementIDRes.first);
-            m_objDB.insertGroup(grp);
+        ObjGroup grp(groupNum, m_objDB.getEntitiesCount(), 0, elementIDRes.first);
+        m_objDB.insertGroup(grp);
 
-            // Store this Obj group's index in the current Groups buffer.
-            m_currentGroupsIdx[2] = m_objDB.getGroupsCount() - 1;
-        }
+        // Store this Obj group's index in the current Groups buffer.
+        m_currentGroupsIdx[2] = m_objDB.getGroupsCount() - 1;
+    }
 }
