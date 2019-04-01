@@ -11,11 +11,11 @@ A web browser with WebGL support (All modern Web browsers should work)
 ```
 **Linux:**
 ```sh
-Clang 3.4 and later
+Clang 5 and later
 ```
 **Windows:**
 ```sh
-Visual C++ 14 (2015) and later
+Visual C++ 15.7 (2017) and later
 ```
 
 ## Getting the project and building
@@ -34,7 +34,7 @@ git clone https://github.com/dartzon/dotObj-parser
 cd dotObj-parser
 generateVSProject.bat
 ```
-The `generateVSProject.bat` runs cmake and generates by default a `Visual Studio 2015 solution` in the build directory.
+The `generateVSProject.bat` runs cmake and generates by default a `Visual Studio 2017 solution` in the build directory.
 
 ### Build customization
 
@@ -154,7 +154,7 @@ The automated tests will open a 3D .obj file from `tests/models` folder and chec
 
 ## Built With
 
-* Plain C++ 11/14 and STL
+* C++ 17 and STL
 * [Catch 2](http://catch-lib.net) - The test framework for unit-tests
 * [three.js](https://threejs.org/) - JavaScript 3D library used to display 3D content in web browsers
 
