@@ -34,12 +34,12 @@
 #define OBJASSERT(ignore, _ignore)                                                                 \
     do                                                                                             \
     {                                                                                              \
-        (() 0);                                                                                    \
+        ((void)0);                                                                                 \
     } while (false);
 #define OBJLOG(...)                                                                                \
     do                                                                                             \
     {                                                                                              \
-        (() 0);                                                                                    \
+        ((void)0);                                                                                 \
     } while (false);
 
 #else
