@@ -34,6 +34,7 @@
 #include <vector>
 #include <unordered_map>
 #include <string>
+#include <string_view>
 
 // Represents a 2D/3D coordinates.
 struct Coordinates3D;
@@ -62,7 +63,7 @@ using EntitiesRefRange_t =
 
 // Wavefront Obj keyword dictionary type.
 enum class ElementType : uint8_t;
-using KeywordsMap_t = std::unordered_map<std::string, ElementType>;
+using KeywordsMap_t = std::unordered_map<std::string_view, ElementType>;
 
 // std::string iterators types.
 using CStringIterator_t = std::string::const_iterator;
@@ -70,7 +71,7 @@ using RStringIterator_t = std::string::reverse_iterator;
 
 // Element type + std::string iterator to its 1st parameter.
 // Since C++11 std::string is contiguous in memory, it's safe to create one from &*iterator.
-using ElemIDResult_t = std::pair<ElementType, CStringIterator_t>;
+using ElemIDResult_t = std::pair<ElementType, std::string_view>;  // TODO: Change this type's name.
 
 /* ============================================================================================== */
 
