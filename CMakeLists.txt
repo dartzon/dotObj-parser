@@ -5,9 +5,9 @@ project(dotObjParser)
 enable_language(C CXX)
 
 ###############################################################################
-## Use C++ 14.
+## Use C++ 17.
 ###############################################################################
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -47,6 +47,7 @@ file(GLOB_RECURSE PROJECT_SRC_LST ${PROJECT_SOURCE_DIR}/src/*.h ${PROJECT_SOURCE
 add_executable(objparser ${PROJECT_SRC_LST})
 target_compile_options(objparser PUBLIC $<$<CONFIG:DEBUG>:-DPROJECT_NAME_DEBUG>)
 target_include_directories(objparser PUBLIC ${PROJECT_SOURCE_DIR}/src/)
+target_link_libraries(objparser stdc++fs)
 
 ###############################################################################
 ## Unit test target.
