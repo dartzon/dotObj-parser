@@ -30,23 +30,48 @@
 
 namespace ObjUtils
 {
-void StringUtils::removeSurroundingBlanks(std::string& str)
+std::string_view StringUtils::removeSurroundingBlanks(const std::string& str)
 {
+    std::string_view noBlanksStr(str);
+
     // Look for the first non blank character.
-    CStringIterator_t strItr = std::find_if_not(str.cbegin(), str.cend(), &isblank);
-    if (strItr != str.end())
+    const auto firstBlankItr = std::find_if_not(noBlanksStr.cbegin(), noBlanksStr.cend(), &isblank);
+    if (firstBlankItr != noBlanksStr.cend())
     {
-        str.erase(str.cbegin(), strItr);
+        noBlanksStr.remove_prefix(std::distance(noBlanksStr.cbegin(), firstBlankItr));
     }
 
     // Look for the first non blank character starting from the end of the string.
-    RStringIterator_t strRItr = std::find_if_not(str.rbegin(), str.rend(), &isspace);
-    if (strRItr != str.rend())
+    const auto lastBlankItr = std::find_if_not(noBlanksStr.crbegin(),
+                                               noBlanksStr.crend(),
+                                               &isspace);
+    if (lastBlankItr != noBlanksStr.crend())
     {
-        // Resize the string to remove blanks.
-        const size_t sz = std::distance(str.rbegin(), strRItr);
-        str.resize(str.size() - sz);
+        noBlanksStr.remove_suffix(std::distance(noBlanksStr.crbegin(), lastBlankItr));
     }
+
+    return noBlanksStr;
+}
+
+// =================================================================================================
+
+std::string_view& StringUtils::removeSurroundingBlanks(std::string_view& str)
+{
+    // Look for the first non blank character.
+    const auto firstBlankItr = std::find_if_not(str.cbegin(), str.cend(), &isblank);
+    if (firstBlankItr != str.cend())
+    {
+        str.remove_prefix(std::distance(str.cbegin(), firstBlankItr));
+    }
+
+    // Look for the first non blank character starting from the end of the string.
+    const auto lastBlankItr = std::find_if_not(str.crbegin(), str.crend(), &isspace);
+    if (lastBlankItr != str.crend())
+    {
+        str.remove_suffix(std::distance(str.crbegin(), lastBlankItr));
+    }
+
+    return str;
 }
 
 } /* namespace ObjUtils */

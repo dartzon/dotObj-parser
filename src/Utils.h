@@ -47,6 +47,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <sstream>
+#include <string_view>
 
 #define OBJHALT() abort()
 
@@ -133,7 +134,8 @@ public:
     /// \brief  Remove blanks surrounding a string.
     ///
     /// \param  str[in,out] Reference to std::string.
-    static void removeSurroundingBlanks(std::string& str);
+    static std::string_view removeSurroundingBlanks(const std::string& str);
+    static std::string_view& removeSurroundingBlanks(std::string_view& str);
 };
 
 } /* namespace ObjUtils */
