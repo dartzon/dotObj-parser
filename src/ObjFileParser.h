@@ -32,6 +32,8 @@
 #include "ObjDatabase.h"
 
 #include <memory>
+#include <filesystem>
+#include <optional>
 
 /// \brief Parser for Wavefront Obj files.
 class ObjFileParser
@@ -40,7 +42,12 @@ public:
     /// \brief  Constructor.
     ///
     /// \param  pObjFilePath Obj file path.
-    ObjFileParser(const char* pObjFilePath) : m_pObjFilePath(pObjFilePath) {}
+    ObjFileParser(const std::string& objFilePath) : m_objFilePath(objFilePath) {}
+
+    /// \brief  Constructor.
+    ///
+    /// \param  pObjFilePath Obj file path.
+    ObjFileParser(std::filesystem::path& objFilePath) : m_objFilePath(std::move(objFilePath)) {}
 
     /// \brief  Parse an Obj file.
     ///
@@ -56,13 +63,13 @@ private:
     /// \brief  Parse Obj element's parameters.
     ///
     /// \param  elementIDRes pair of the element type and the index to its first parameter.
-    void parseElementDataArgs(const ElemIDResult_t& elementIDRes);
+    void parseElementArgs(const ElemIDResult_t& elementIDRes);
 
     /// \brief  Get the current Obj element type.
     ///
     /// \param  oneLine Line to parse.
     /// \return  pair of the element type and the index to its first parameter.
-    ElemIDResult_t getElementType(const std::string& oneLine);
+    std::optional<ElemIDResult_t> getElementType(const std::string& oneLine);
 
     /// \brief  Get the vertices indices' organization for elements with indices.
     ///
@@ -128,7 +135,7 @@ private:
     // Each newly inserted entity will increment the corresponding group's entity count offset.
     std::array<int64_t, 3> m_currentGroupsIdx = {-1, -1, -1};
 
-    const char* m_pObjFilePath;
+    const std::filesystem::path m_objFilePath;
     ObjDatabase m_objDB;
 
     // It is safe to assume that the very first read element will be a Vertex, so initialize to

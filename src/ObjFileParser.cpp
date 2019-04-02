@@ -33,26 +33,32 @@ ObjDatabase ObjFileParser::parseFile()
 {
     OBJLOG("Obj file parsing started...");
 
-    const std::unique_ptr<std::FILE, decltype(&fclose)> smtObjFile(fopen(m_pObjFilePath, "r"),
-                                                                   &fclose);
+    OBJASSERT((fs::exists(m_objFilePath) == true) && (fs::is_regular_file(m_objFilePath) == true),
+              "Obj file not found");
 
-    OBJASSERT(smtObjFile != nullptr, "Obj file not found");
-
-    if (smtObjFile != nullptr)
+    namespace fs = std::filesystem;
+    if ((fs::exists(m_objFilePath) == true) && (fs::is_regular_file(m_objFilePath) == true))
     {
-        const uint16_t lineBufferSize = 256;
-        char lineBuffer[lineBufferSize];
+        const std::unique_ptr<std::FILE, decltype(&fclose)> smtObjFile(fopen(m_objFilePath.c_str(),
+                                                                             "r"),
+                                                                       &fclose);
 
-        std::string oneLine;
-        oneLine.reserve(lineBufferSize);
-
-        while (fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
+        if (smtObjFile != nullptr)
         {
-            oneLine = lineBuffer;
-            parseLine(oneLine);
-        }
+            const uint16_t lineBufferSize = 256;
+            char lineBuffer[lineBufferSize];
 
-        OBJLOG("Obj file parsing ended");
+            std::string oneLine;
+            oneLine.reserve(lineBufferSize);
+
+            while (fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
+            {
+                oneLine = lineBuffer;
+                parseLine(oneLine);
+            }
+
+            OBJLOG("Obj file parsing ended");
+        }
     }
 
     // std::move used because:
@@ -66,34 +72,35 @@ ObjDatabase ObjFileParser::parseFile()
 
 void ObjFileParser::parseLine(const std::string& oneLine)
 {
-    ElemIDResult_t elemTypeRes = getElementType(oneLine);
+    const std::optional<ElemIDResult_t> elemTypeRes = getElementType(oneLine);
 
     // The line is either empty or the element is unknown.
-    if (elemTypeRes.second != oneLine.cend())
+    if (elemTypeRes.has_value() == true)
     {
         // Check if last element was a vertex (or its variants) and current element is not.
         constexpr std::array<ElementType, 4> arr = {ElementType::VERTEX,
                                                     ElementType::VERTEX_TEXTURE,
                                                     ElementType::VERTEX_NORMAL,
                                                     ElementType::VERTEX_PARAM_SPACE};
-        if ((m_lastElementType != elemTypeRes.first) &&
+
+        if ((m_lastElementType != (*elemTypeRes).first) &&
             (std::find(arr.cbegin(), arr.cend(), m_lastElementType) != arr.cend()) &&
-            (std::find(arr.cbegin(), arr.cend(), elemTypeRes.first) == arr.cend()))
+            (std::find(arr.cbegin(), arr.cend(), (*elemTypeRes).first) == arr.cend()))
         {
             // Pre-allocate memory for next wave of vertices indices.
             m_objDB.reserveIndexBufferMemory();
         }
 
-        m_lastElementType = elemTypeRes.first;
+        m_lastElementType = (*elemTypeRes).first;
 
         // Parse the arguments of each element.
-        parseElementDataArgs(elemTypeRes);
+        parseElementArgs(*elemTypeRes);
     }
 }
 
 // =================================================================================================
 
-void ObjFileParser::parseElementDataArgs(const ElemIDResult_t& elementIDRes)
+void ObjFileParser::parseElementArgs(const ElemIDResult_t& elementIDRes)
 {
     switch (elementIDRes.first)
     {
@@ -117,32 +124,40 @@ void ObjFileParser::parseElementDataArgs(const ElemIDResult_t& elementIDRes)
 
 // =================================================================================================
 
-ElemIDResult_t ObjFileParser::getElementType(const std::string& oneLine)
+std::optional<ElemIDResult_t> ObjFileParser::getElementType(const std::string& oneLine)
 {
     // Skip white spaces at the beginning of the line (Only \t & ' ').
     CStringIterator_t lineStartItr = std::find_if_not(oneLine.cbegin(), oneLine.cend(), &isblank);
 
     // Skip this line if it is empty or is a comment line (\t, \f, \n, \r, \v,  ' ').
     if ((lineStartItr != oneLine.cend()) &&
-        ((isspace(*lineStartItr) != 0) || (*lineStartItr == '#')))
+        ((isspace(*lineStartItr) != 0) ||
+         (*lineStartItr == '#')))  // TODO: check the first condition.
     {
-        return std::make_pair(ElementType::VERTEX, oneLine.cend());
+        return std::nullopt;
     }
 
     // Go to the next white space (Only \t & ' ').
-    CStringIterator_t blankAfterTokenItr = std::find_if(lineStartItr, oneLine.cend(), &isblank);
+    CStringIterator_t nextBlankItr = std::find_if(lineStartItr, oneLine.cend(), &isblank);
 
-    // Construct our element token.
-    const std::string elementToken(lineStartItr, blankAfterTokenItr);
+    // Extract the element's type keyword.
+    std::string_view elementToken(oneLine);
+    elementToken.remove_prefix(std::distance(oneLine.cbegin(), lineStartItr));
+    elementToken.remove_suffix(std::distance(nextBlankItr, oneLine.cend()));
 
-    // Find the element token in the keywords list.
-    KeywordsMap_t::const_iterator keyItr = elementsKeywords.find(elementToken);
-    if (keyItr == elementsKeywords.cend())
+    // Find the element's type keyword in the keywords list.
+    if (KeywordsMap_t::const_iterator keyItr = elementsKeywords.find(elementToken);
+        keyItr == elementsKeywords.cend())
     {
-        return std::make_pair(ElementType::VERTEX, oneLine.cend());
+        return std::nullopt;
     }
-
-    return std::make_pair(keyItr->second, blankAfterTokenItr);
+    else
+    {
+        // Store the element's type and its arguments.
+        elementToken = oneLine;
+        elementToken.remove_prefix(std::distance(oneLine.cbegin(), nextBlankItr));
+        return std::make_pair(keyItr->second, elementToken);
+    }
 }
 
 // =================================================================================================
@@ -188,26 +203,28 @@ void ObjFileParser::parseVertex(const ElemIDResult_t& elementIDRes)
 {
     OBJLOG("Parsing Vertex");
 
-    std::string args(&*elementIDRes.second);
-    ObjUtils::StringUtils::removeSurroundingBlanks(args);
+    auto [vtxType, vtxArgs] = elementIDRes;
+    ObjUtils::StringUtils::removeSurroundingBlanks(vtxArgs);
 
     size_t processedCharsCount = 0;
 
     Vertex_t vtx;
 
-    vtx.m_x = std::stof(args, &processedCharsCount);
-    args.erase(args.cbegin(), args.cbegin() + processedCharsCount);
+    // Parse x component.
+    vtx.m_x = std::stof(vtxArgs.data(), &processedCharsCount);
+    vtxArgs.remove_prefix(processedCharsCount);
 
-    vtx.m_y = std::stof(args, &processedCharsCount);
-    args.erase(args.cbegin(), args.cbegin() + processedCharsCount);
+    // Parse y component.
+    vtx.m_y = std::stof(vtxArgs.data(), &processedCharsCount);
+    vtxArgs.remove_prefix(processedCharsCount);
 
-    // Check if the 3rd parameter exists.
-    if (args.size() > 0)
+    // Check if the z component exists.
+    if (vtxArgs.size() > 0)
     {
-        vtx.m_z = std::stof(args, &processedCharsCount);
+        vtx.m_z = std::stof(vtxArgs.data(), &processedCharsCount);
     }
 
-    m_objDB.insertVertex(vtx, elementIDRes.first);
+    m_objDB.insertVertex(vtx, vtxType);
 }
 
 // =================================================================================================
@@ -216,7 +233,7 @@ void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
 {
     OBJLOG("Parsing Face");
 
-    std::string args(&*elementIDRes.second);
+    std::string args(elementIDRes.second.data());
     ObjUtils::StringUtils::removeSurroundingBlanks(args);
 
     // Get the organization of the vertices' indices triplets.
@@ -277,7 +294,7 @@ void ObjFileParser::parseGroup(const ElemIDResult_t& elementIDRes)
 {
     OBJLOG("Parsing Group");
 
-    std::string args(&*elementIDRes.second);
+    std::string args(elementIDRes.second.data());
     ObjUtils::StringUtils::removeSurroundingBlanks(args);
 
     if (elementIDRes.first == ElementType::GROUP_NAME ||
