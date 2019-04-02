@@ -38,7 +38,8 @@
 
 int main(int argc, char* argv[])
 {
-    const char* objFilePath = "";
+    namespace fs = std::filesystem;
+    fs::path objFilePath("/home/dartzon/Dev-Workspace/DotObj/tests/models/ducky.obj");
     if (argc > 1)
     {
         objFilePath = argv[1];
