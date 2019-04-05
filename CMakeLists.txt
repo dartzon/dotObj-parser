@@ -45,7 +45,7 @@ endif()
 ###############################################################################
 file(GLOB_RECURSE PROJECT_SRC_LST ${PROJECT_SOURCE_DIR}/src/*.h ${PROJECT_SOURCE_DIR}/src/*.cpp)
 add_executable(objparser ${PROJECT_SRC_LST})
-target_compile_options(objparser PUBLIC $<$<CONFIG:DEBUG>:-DPROJECT_NAME_DEBUG>)
+target_compile_options(objparser PUBLIC $<$<CONFIG:DEBUG>:-DOBJ_DEBUG>)
 target_include_directories(objparser PUBLIC ${PROJECT_SOURCE_DIR}/src/)
 target_link_libraries(objparser stdc++fs)
 
