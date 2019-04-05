@@ -58,7 +58,7 @@ private:
     /// \brief  Parse one line of the Obj file.
     ///
     /// \param  oneLine Line to parse.
-    void parseLine(const std::string& oneLine);
+    void parseElement(std::string_view oneLine);  // TODO: change std::string to std::string_view.
 
     /// \brief  Parse Obj element's parameters.
     ///
@@ -69,13 +69,13 @@ private:
     ///
     /// \param  oneLine Line to parse.
     /// \return  pair of the element type and the index to its first parameter.
-    std::optional<ElemIDResult_t> getElementType(const std::string& oneLine);
+    std::optional<ElemIDResult_t> getElementType(std::string_view oneLine);
 
     /// \brief  Get the vertices indices' organization for elements with indices.
     ///
     /// \param  oneLine Line to parse.
     /// \return  Vertices indices organization.
-    VerticesIdxOrganization getIndicesOrganization(const std::string& args);
+    std::optional<VerticesIdxOrganization> getIndicesOrganization(const std::string_view& args);
 
     /// \brief  Parse Vertex data.
     ///

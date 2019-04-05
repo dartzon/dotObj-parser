@@ -42,9 +42,7 @@ std::string_view StringUtils::removeSurroundingBlanks(const std::string& str)
     }
 
     // Look for the first non blank character starting from the end of the string.
-    const auto lastBlankItr = std::find_if_not(noBlanksStr.crbegin(),
-                                               noBlanksStr.crend(),
-                                               &isspace);
+    auto lastBlankItr = std::find_if_not(noBlanksStr.crbegin(), noBlanksStr.crend(), &isspace);
     if (lastBlankItr != noBlanksStr.crend())
     {
         noBlanksStr.remove_suffix(std::distance(noBlanksStr.crbegin(), lastBlankItr));
@@ -65,13 +63,59 @@ std::string_view& StringUtils::removeSurroundingBlanks(std::string_view& str)
     }
 
     // Look for the first non blank character starting from the end of the string.
-    const auto lastBlankItr = std::find_if_not(str.crbegin(), str.crend(), &isspace);
+    auto lastBlankItr = std::find_if_not(str.crbegin(), str.crend(), &isspace);
     if (lastBlankItr != str.crend())
     {
         str.remove_suffix(std::distance(str.crbegin(), lastBlankItr));
     }
 
     return str;
+}
+
+// =================================================================================================
+
+std::vector<std::string_view> StringUtils::splitString(const std::string& str)
+{
+    auto startItr = str.cbegin();
+    auto freeItr = startItr;
+
+    std::vector<std::string_view> subStrings;
+
+    while ((freeItr = std::find_if(startItr, str.cend(), &isblank)) != str.cend())
+    {
+        subStrings.push_back(std::string_view(&*startItr, std::distance(startItr, freeItr)));
+        startItr = freeItr + 1;
+    }
+
+    if (startItr != str.cend())
+    {
+        subStrings.push_back(std::string_view(&*startItr, std::distance(startItr, str.cend())));
+    }
+
+    return subStrings;
+}
+
+// =================================================================================================
+
+std::vector<std::string_view> StringUtils::splitString(std::string_view str)
+{
+    auto startItr = str.cbegin();
+    auto freeItr = startItr;
+
+    std::vector<std::string_view> subStrings;
+
+    while ((freeItr = std::find_if(startItr, str.cend(), &isblank)) != str.cend())
+    {
+        subStrings.push_back(std::string_view(&*startItr, std::distance(startItr, freeItr)));
+        startItr = freeItr + 1;
+    }
+
+    if (startItr != str.cend())
+    {
+        subStrings.push_back(std::string_view(&*startItr, std::distance(startItr, str.cend())));
+    }
+
+    return subStrings;
 }
 
 } /* namespace ObjUtils */

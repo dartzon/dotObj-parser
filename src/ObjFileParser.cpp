@@ -33,10 +33,10 @@ ObjDatabase ObjFileParser::parseFile()
 {
     OBJLOG("Obj file parsing started...");
 
+    namespace fs = std::filesystem;
+
     OBJASSERT((fs::exists(m_objFilePath) == true) && (fs::is_regular_file(m_objFilePath) == true),
               "Obj file not found");
-
-    namespace fs = std::filesystem;
     if ((fs::exists(m_objFilePath) == true) && (fs::is_regular_file(m_objFilePath) == true))
     {
         const std::unique_ptr<std::FILE, decltype(&fclose)> smtObjFile(fopen(m_objFilePath.c_str(),
@@ -54,7 +54,7 @@ ObjDatabase ObjFileParser::parseFile()
             while (fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
             {
                 oneLine = lineBuffer;
-                parseLine(oneLine);
+                parseElement(oneLine);
             }
 
             OBJLOG("Obj file parsing ended");
@@ -70,28 +70,32 @@ ObjDatabase ObjFileParser::parseFile()
 
 // =================================================================================================
 
-void ObjFileParser::parseLine(const std::string& oneLine)
+void ObjFileParser::parseElement(std::string_view oneLine)
 {
+    ObjUtils::StringUtils::removeSurroundingBlanks(oneLine);
+
     const std::optional<ElemIDResult_t> elemTypeRes = getElementType(oneLine);
 
-    // The line is either empty or the element is unknown.
+    // False if the line is either empty or the element is unknown.
     if (elemTypeRes.has_value() == true)
     {
-        // Check if last element was a vertex (or its variants) and current element is not.
         constexpr std::array<ElementType, 4> arr = {ElementType::VERTEX,
                                                     ElementType::VERTEX_TEXTURE,
                                                     ElementType::VERTEX_NORMAL,
                                                     ElementType::VERTEX_PARAM_SPACE};
 
-        if ((m_lastElementType != (*elemTypeRes).first) &&
+        const ElementType currentElemType = (*elemTypeRes).first;
+
+        // Check if last element was a vertex (or its variants) and current element is not.
+        if ((m_lastElementType != currentElemType) &&
             (std::find(arr.cbegin(), arr.cend(), m_lastElementType) != arr.cend()) &&
-            (std::find(arr.cbegin(), arr.cend(), (*elemTypeRes).first) == arr.cend()))
+            (std::find(arr.cbegin(), arr.cend(), currentElemType) == arr.cend()))
         {
             // Pre-allocate memory for next wave of vertices indices.
             m_objDB.reserveIndexBufferMemory();
         }
 
-        m_lastElementType = (*elemTypeRes).first;
+        m_lastElementType = currentElemType;
 
         // Parse the arguments of each element.
         parseElementArgs(*elemTypeRes);
@@ -102,7 +106,9 @@ void ObjFileParser::parseLine(const std::string& oneLine)
 
 void ObjFileParser::parseElementArgs(const ElemIDResult_t& elementIDRes)
 {
-    switch (elementIDRes.first)
+    const ElementType elemType = elementIDRes.first;
+
+    switch (elemType)
     {
     case ElementType::VERTEX:
     case ElementType::VERTEX_TEXTURE:
@@ -118,79 +124,82 @@ void ObjFileParser::parseElementArgs(const ElemIDResult_t& elementIDRes)
         parseGroup(elementIDRes);
         break;
 
-    default: break;
+    default: /* OBJASSERT(false, "Element's type not yet supported"); */
+        OBJLOG("Element's type not yet supported : ", static_cast<uint8_t>(elemType));
+        break;
     }
 }
 
 // =================================================================================================
 
-std::optional<ElemIDResult_t> ObjFileParser::getElementType(const std::string& oneLine)
+std::optional<ElemIDResult_t> ObjFileParser::getElementType(std::string_view oneLine)
 {
-    // Skip white spaces at the beginning of the line (Only \t & ' ').
-    CStringIterator_t lineStartItr = std::find_if_not(oneLine.cbegin(), oneLine.cend(), &isblank);
-
     // Skip this line if it is empty or is a comment line (\t, \f, \n, \r, \v,  ' ').
-    if ((lineStartItr != oneLine.cend()) &&
-        ((isspace(*lineStartItr) != 0) ||
-         (*lineStartItr == '#')))  // TODO: check the first condition.
+    if ((oneLine.size() > 0) && ((isspace(*oneLine.data()) != 0) || (*oneLine.data() == '#')))
     {
         return std::nullopt;
     }
 
     // Go to the next white space (Only \t & ' ').
-    CStringIterator_t nextBlankItr = std::find_if(lineStartItr, oneLine.cend(), &isblank);
+    auto nextBlankItr = std::find_if(oneLine.cbegin(), oneLine.cend(), &isblank);
 
     // Extract the element's type keyword.
-    std::string_view elementToken(oneLine);
-    elementToken.remove_prefix(std::distance(oneLine.cbegin(), lineStartItr));
-    elementToken.remove_suffix(std::distance(nextBlankItr, oneLine.cend()));
+    // const size_t prefixToRemove = std::distance(oneLine.cbegin(), lineStartItr);
+    const size_t suffixToRemove = std::distance(nextBlankItr, oneLine.cend());
+    const std::string_view typeKeyword(oneLine.data(), oneLine.size() - suffixToRemove);
 
     // Find the element's type keyword in the keywords list.
-    if (KeywordsMap_t::const_iterator keyItr = elementsKeywords.find(elementToken);
+    if (KeywordsMap_t::const_iterator keyItr = elementsKeywords.find(typeKeyword);
         keyItr == elementsKeywords.cend())
     {
         return std::nullopt;
     }
     else
     {
+        // Keep only the element's arguments.
+        oneLine.remove_prefix(std::distance(oneLine.cbegin(), nextBlankItr));
+        ObjUtils::StringUtils::removeSurroundingBlanks(oneLine);
+
         // Store the element's type and its arguments.
-        elementToken = oneLine;
-        elementToken.remove_prefix(std::distance(oneLine.cbegin(), nextBlankItr));
-        return std::make_pair(keyItr->second, elementToken);
+        return std::make_pair(keyItr->second, oneLine);
     }
 }
 
 // =================================================================================================
 
-VerticesIdxOrganization ObjFileParser::getIndicesOrganization(const std::string& args)
+std::optional<VerticesIdxOrganization>
+ObjFileParser::getIndicesOrganization(const std::string_view& args)
 {
-    // Initialize to no slashes found. So, no texture vertices, no normal vertices.
+    // Looks like: x.
+    // Initialize to no slashes found, geometric vertex index only.
     VerticesIdxOrganization vtxIdxOrg = VerticesIdxOrganization::VGEO;
 
-    const size_t doubleSlashesPos = args.find("//");
-    if (doubleSlashesPos != std::string::npos)
+    if (const size_t doubleSlashesPos = args.find("//"); doubleSlashesPos != std::string_view::npos)
     {
+        // Looks like: v//vn.
         // 2 contiguous slashes found, geometric vertex index and vertex normal index available.
         vtxIdxOrg = VerticesIdxOrganization::VGEO_VNORMAL;
     }
     else
     {
-        CStringIterator_t firstBlankItr = std::find_if(args.cbegin(), args.cend(), &isblank);
-        const size_t countSlashes = std::count(args.cbegin(), firstBlankItr, '/');
+        auto firstBlankItr = std::find_if(args.cbegin(), args.cend(), &isblank);
 
-        switch (countSlashes)
+        switch (const size_t countSlashes = std::count(args.cbegin(), firstBlankItr, '/');
+                countSlashes)
         {
         case 1:
+            // Looks like: v/vt.
             // 1 slash found, geometric vertex index and vertex texture index available.
             vtxIdxOrg = VerticesIdxOrganization::VGEO_VTEXTURE;
             break;
 
         case 2:
-            // 2 separate slashes found, all indices available.
+            // Looks like: v/vt/vn.
+            // 2 slashes found, all indices available.
             vtxIdxOrg = VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL;
             break;
 
-        default: OBJASSERT(false, "Too many indices references");
+        default: OBJASSERT(false, "Too many indices references"); return std::nullopt;
         }
     }
 
@@ -201,27 +210,34 @@ VerticesIdxOrganization ObjFileParser::getIndicesOrganization(const std::string&
 
 void ObjFileParser::parseVertex(const ElemIDResult_t& elementIDRes)
 {
-    OBJLOG("Parsing Vertex");
+    OBJLOG("Parsing a Vertex");
 
     auto [vtxType, vtxArgs] = elementIDRes;
-    ObjUtils::StringUtils::removeSurroundingBlanks(vtxArgs);
 
     size_t processedCharsCount = 0;
 
     Vertex_t vtx;
+    auto& [x, y, z, w] = vtx;
 
     // Parse x component.
-    vtx.m_x = std::stof(vtxArgs.data(), &processedCharsCount);
+    x = std::stof(vtxArgs.data(), &processedCharsCount);
     vtxArgs.remove_prefix(processedCharsCount);
 
     // Parse y component.
-    vtx.m_y = std::stof(vtxArgs.data(), &processedCharsCount);
+    y = std::stof(vtxArgs.data(), &processedCharsCount);
     vtxArgs.remove_prefix(processedCharsCount);
 
     // Check if the z component exists.
     if (vtxArgs.size() > 0)
     {
-        vtx.m_z = std::stof(vtxArgs.data(), &processedCharsCount);
+        z = std::stof(vtxArgs.data(), &processedCharsCount);
+        vtxArgs.remove_prefix(processedCharsCount);
+    }
+
+    // Check if the w component exists.
+    if (vtxArgs.size() > 0)
+    {
+        w = std::stof(vtxArgs.data(), &processedCharsCount);
     }
 
     m_objDB.insertVertex(vtx, vtxType);
@@ -231,16 +247,17 @@ void ObjFileParser::parseVertex(const ElemIDResult_t& elementIDRes)
 
 void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
 {
-    OBJLOG("Parsing Face");
+    OBJLOG("Parsing a Face");
 
-    std::string args(elementIDRes.second.data());
-    ObjUtils::StringUtils::removeSurroundingBlanks(args);
+    std::string_view faceArgs{elementIDRes.second};
 
     // Get the organization of the vertices' indices triplets.
-    const VerticesIdxOrganization vtxIdxOrg = getIndicesOrganization(args);
+    const std::optional<VerticesIdxOrganization> vtxIdxOrg = getIndicesOrganization(faceArgs);
 
-    // Remove all the slashes and keep only numbers.
-    std::replace(args.begin(), args.end(), '/', ' ');
+    if (vtxIdxOrg.has_value() == false)
+    {
+        return;
+    }
 
     size_t idxCount = 0;
     size_t pos = 0;
@@ -250,15 +267,14 @@ void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
                                                m_objDB.getVertexNormalIndexBufferCount()};
     uint8_t bufferPtrIdx = 0;
 
-    while (pos < args.size())
+    while (pos < faceArgs.size())
     {
-        args.erase(args.cbegin(), args.cbegin() + pos);
-        int64_t vtxIdx = std::stol(args, &pos);
+        int64_t vtxIdx = std::stol(faceArgs.data(), &pos);
 
         // Negative indices refere to the last nth position in a buffer = buffer.size - idx.
         if (vtxIdx < 0)
         {
-            switch (vtxIdxOrg)
+            switch (*vtxIdxOrg)
             {
             case VerticesIdxOrganization::VGEO_VTEXTURE:
                 bufferPtrIdx = (bufferPtrIdx == 0) ? 1 : 0;
@@ -278,13 +294,29 @@ void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
             vtxIdx = buffersPtrs[bufferPtrIdx] + vtxIdx + 1;
         }
 
+        // Skip slashes and already converted values.
+        {
+            uint8_t charsToRemove = 0;
+
+            if (faceArgs[pos] == '/')
+            {
+                charsToRemove = 1;
+                if (faceArgs[pos + 1] == '/')
+                {
+                    charsToRemove = 2;
+                }
+            }
+
+            faceArgs.remove_prefix(pos + charsToRemove);
+        }
+
         m_objDB.insertIndex(vtxIdx);
         ++idxCount;
     }
 
     OBJASSERT(idxCount <= 12, "Face has too many vertices indices");
 
-    ObjEntityFace objFace(m_objDB.getIndexBufferCount() - idxCount, idxCount, vtxIdxOrg);
+    ObjEntityFace objFace(m_objDB.getIndexBufferCount() - idxCount, idxCount, *vtxIdxOrg);
     m_objDB.insertEntity(objFace, m_currentGroupsIdx);
 }
 
@@ -292,31 +324,31 @@ void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
 
 void ObjFileParser::parseGroup(const ElemIDResult_t& elementIDRes)
 {
-    OBJLOG("Parsing Group");
+    OBJLOG("Parsing a Group");
 
-    std::string args(elementIDRes.second.data());
-    ObjUtils::StringUtils::removeSurroundingBlanks(args);
+    auto [grpType, grpArgs] = elementIDRes;
 
-    if (elementIDRes.first == ElementType::GROUP_NAME ||
-        elementIDRes.first == ElementType::OBJECT_NAME)
+    // std::vector<std::string_view> vec = ObjUtils::StringUtils::splitString(grpArgs);
+
+    if (grpType == ElementType::GROUP_NAME || grpType == ElementType::OBJECT_NAME)
     {
         // Only a group name points to an entity index.
-        const size_t entityTableIdx = (elementIDRes.first == ElementType::GROUP_NAME) ?
+        const size_t entityTableIdx = (grpType == ElementType::GROUP_NAME) ?
                                           m_objDB.getEntitiesCount() :
                                           0;
-        ObjGroup grp(args, entityTableIdx, elementIDRes.first);
+        ObjGroup grp(grpArgs, entityTableIdx, grpType);
         m_objDB.insertGroup(grp);
 
         // Store this Obj group's index in the current Groups buffer.
-        (elementIDRes.first == ElementType::GROUP_NAME) ?
+        (grpType == ElementType::GROUP_NAME) ?
             m_currentGroupsIdx[0] = m_objDB.getGroupsCount() - 1 :
             m_currentGroupsIdx[1] = m_objDB.getGroupsCount() - 1;
     }
-    else if (elementIDRes.first == ElementType::SMOOTHING_GROUP)
+    else if ((grpType == ElementType::SMOOTHING_GROUP) && (grpArgs != "off" && grpArgs != "0"))
     {
-        const size_t groupNum = std::stol(args);
+        const size_t groupNum = std::stol(grpArgs.data());
 
-        ObjGroup grp(groupNum, m_objDB.getEntitiesCount(), 0, elementIDRes.first);
+        ObjGroup grp(groupNum, m_objDB.getEntitiesCount(), 0, grpType);
         m_objDB.insertGroup(grp);
 
         // Store this Obj group's index in the current Groups buffer.

@@ -48,6 +48,7 @@
 #include <cstdint>
 #include <sstream>
 #include <string_view>
+#include <vector>
 
 #define OBJHALT() abort()
 
@@ -136,6 +137,8 @@ public:
     /// \param  str[in,out] Reference to std::string.
     static std::string_view removeSurroundingBlanks(const std::string& str);
     static std::string_view& removeSurroundingBlanks(std::string_view& str);
+    static std::vector<std::string_view> splitString(const std::string& str);
+    static std::vector<std::string_view> splitString(std::string_view str);
 };
 
 } /* namespace ObjUtils */
