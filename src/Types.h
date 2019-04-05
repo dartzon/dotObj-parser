@@ -81,6 +81,7 @@ struct Coordinates3D
     float m_x = 0.0f;
     float m_y = 0.0f;
     float m_z = 0.0f;
+    float m_w = 1.0f;  ///< Weight for rational curves and surfaces.
 };
 
 /* ============================================================================================== */
