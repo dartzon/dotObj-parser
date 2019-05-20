@@ -29,6 +29,9 @@
 #ifndef UTILS_H_
 #define UTILS_H_
 
+#include <vector>
+#include <string_view>
+
 #ifndef OBJ_DEBUG
 
 #define OBJASSERT(ignore, _ignore)                                                                 \
@@ -47,8 +50,6 @@
 #include <cstdio>
 #include <cstdint>
 #include <sstream>
-#include <string_view>
-#include <vector>
 
 #define OBJHALT() abort()
 
@@ -132,13 +133,33 @@ public:
     /// \brief  This class is not to be instanciated.
     StringUtils() = delete;
 
-    /// \brief  Remove blanks surrounding a string.
+    /// \brief  Remove the blanks arround a string.
     ///
-    /// \param  str[in,out] Reference to std::string.
+    /// \param str Source string.
+    /// \return Cleaned string.
     static std::string_view removeSurroundingBlanks(const std::string& str);
+
+    /// \brief  Remove the blanks arround a string.
+    ///
+    /// \param  str Source string.
+    /// \return Cleaned string.
     static std::string_view& removeSurroundingBlanks(std::string_view& str);
-    static std::vector<std::string_view> splitString(const std::string& str);
-    static std::vector<std::string_view> splitString(std::string_view str);
+
+    /// \brief  Split a string by white spaces and a list of delimiters.
+    ///
+    /// \param str Source string.
+    /// \param delimiters List of delimiters.
+    /// \return std::vector of substrings.
+    static std::vector<std::string_view>
+    splitString(const std::string& str, const std::initializer_list<const char> delimiters = {});
+
+    /// \brief  Split a string by white spaces and a list of delimiters.
+    ///
+    /// \param str Source string.
+    /// \param delimiters List of delimiters.
+    /// \return std::vector of substrings.
+    static std::vector<std::string_view>
+    splitString(std::string_view str, const std::initializer_list<const char> delimiters = {});
 };
 
 } /* namespace ObjUtils */

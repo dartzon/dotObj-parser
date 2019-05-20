@@ -29,41 +29,45 @@
 #define OBJENTITYFACE_H_
 
 #include "ObjEntity.h"
-#include "WithVerticesIndices.h"
+#include "VertexBasedEntity.h"
 
 /// \brief Represents an Obj Face with its vertices indices list.
 class ObjEntityFace
     : public ObjEntity
-    , public WithVerticesIndices
+    , public VertexBasedEntity
 {
 public:
-    /// \brief  Constructor for (g/o).
+    /// \brief  Constructor.
     ///
-    /// \param  indexBufferIdx Index of the first vertex index.
-    /// \param  indicesOffset Count of vertices indices.
+    /// \param  firstIdx First vertex index.
+    /// \param  lastIdx Last vertex index.
     /// \param  eParamsOrganization Vertices indices layout.
-    ObjEntityFace(const size_t indexBufferIdx,
-                  const size_t indicesOffset,
-                  const VerticesIdxOrganization eParamsOrganization);
+    ObjEntityFace(const size_t firstIdx,
+                  const size_t lastIdx,
+                  const VerticesIdxOrganization eVtxIdxOrganization);
 
-    /// \brief  Move constructor.
-    ObjEntityFace(ObjEntityFace&& face) noexcept :
-        ObjEntity(std::move(face)), WithVerticesIndices(std::move(face))
-    {
-    }
+    /// \brief Default copy constructor.
+    ObjEntityFace(const ObjEntityFace&) = default;
+
+    /// \brief  Default move constructor.
+    ObjEntityFace(ObjEntityFace&& face) noexcept = default;
 
     // Accessors ===================================================================================
 
-    inline bool isTriangle() const { return m_isTriangle; }
+    bool isTriangle() const { return m_isTriangle; }
+    bool hasTextureVertex() const { return m_hasTextureVertex; }
+    bool hasNormal() const { return m_hasVertexNormal; }
 
 private:
     // Members =====================================================================================
 
-    bool m_isTriangle;  ///< Is this face a triangle?
+    bool m_isTriangle;        ///< Is this face a triangle?
+    bool m_hasTextureVertex;  ///< Does the face has a texture vertex?
+    bool m_hasVertexNormal;   ///< Does the face has a vertex normal?
 };
 
 // Typedefs ========================================================================================
-using FacesBuffer_t = std::vector<ObjEntityFace>;
-using FacesRefRange_t = std::pair<FacesBuffer_t::const_iterator, FacesBuffer_t::const_iterator>;
+using FaceBuffer_t = std::vector<ObjEntityFace>;
+using FacesRefRange_t = std::pair<FaceBuffer_t::const_iterator, FaceBuffer_t::const_iterator>;
 
 #endif /* OBJENTITYFACE_H_ */

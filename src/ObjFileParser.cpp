@@ -45,17 +45,24 @@ ObjDatabase ObjFileParser::parseFile()
 
         if (smtObjFile != nullptr)
         {
-            const uint16_t lineBufferSize = 256;
+            const uint16_t lineBufferSize = 1024;
             char lineBuffer[lineBufferSize];
 
             std::string oneLine;
             oneLine.reserve(lineBufferSize);
+
+            // Create the default group named "default" before parsing the first entity.
+            m_currentGroups.push_back(
+                m_objDB.insertEntity(ObjEntityGroup{ElementType::GROUP_NAME, 0, "default"}));
 
             while (fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
             {
                 oneLine = lineBuffer;
                 parseElement(oneLine);
             }
+
+            // Set the last included entity index for any remaining active groups.
+            endCurrentGroupsEntitiesRanges();
 
             OBJLOG("Obj file parsing ended");
         }
@@ -124,8 +131,15 @@ void ObjFileParser::parseElementArgs(const ElemIDResult_t& elementIDRes)
         parseGroup(elementIDRes);
         break;
 
-    default: /* OBJASSERT(false, "Element's type not yet supported"); */
+    case ElementType::MATERIAL_NAME: OBJLOG("usemtl command not yet supported"); break;
+
+    case ElementType::LOD: OBJLOG("lod command not yet supported"); break;
+
+    case ElementType::MATERIAL_LIB: OBJLOG("mtllib command not yet supported"); break;
+
+    default:
         OBJLOG("Element's type not yet supported : ", static_cast<uint8_t>(elemType));
+        OBJASSERT(false, "Element's type not yet supported");
         break;
     }
 }
@@ -187,6 +201,12 @@ ObjFileParser::getIndicesOrganization(const std::string_view& args)
         switch (const size_t countSlashes = std::count(args.cbegin(), firstBlankItr, '/');
                 countSlashes)
         {
+        case 0:
+            // Looks like: v.
+            // No slashes found, only geometric vertex available.
+            vtxIdxOrg = VerticesIdxOrganization::VGEO;
+            break;
+
         case 1:
             // Looks like: v/vt.
             // 1 slash found, geometric vertex index and vertex texture index available.
@@ -216,7 +236,7 @@ void ObjFileParser::parseVertex(const ElemIDResult_t& elementIDRes)
 
     size_t processedCharsCount = 0;
 
-    Vertex_t vtx;
+    Vertex_t vtx{vtxType};
     auto& [x, y, z, w] = vtx;
 
     // Parse x component.
@@ -240,7 +260,7 @@ void ObjFileParser::parseVertex(const ElemIDResult_t& elementIDRes)
         w = std::stof(vtxArgs.data(), &processedCharsCount);
     }
 
-    m_objDB.insertVertex(vtx, vtxType);
+    m_objDB.insertEntity(vtx);
 }
 
 // =================================================================================================
@@ -259,65 +279,21 @@ void ObjFileParser::parseFace(const ElemIDResult_t& elementIDRes)
         return;
     }
 
-    size_t idxCount = 0;
-    size_t pos = 0;
-
-    const std::array<size_t, 3> buffersPtrs = {m_objDB.getIndexBufferCount(),
-                                               m_objDB.getTextureUVIndexBufferCount(),
-                                               m_objDB.getVertexNormalIndexBufferCount()};
-    uint8_t bufferPtrIdx = 0;
-
-    while (pos < faceArgs.size())
+    const std::vector<std::string_view> parts = ObjUtils::StringUtils::splitString(faceArgs, {'/'});
+    if (parts.size() < 3)
     {
-        int64_t vtxIdx = std::stol(faceArgs.data(), &pos);
-
-        // Negative indices refere to the last nth position in a buffer = buffer.size - idx.
-        if (vtxIdx < 0)
-        {
-            switch (*vtxIdxOrg)
-            {
-            case VerticesIdxOrganization::VGEO_VTEXTURE:
-                bufferPtrIdx = (bufferPtrIdx == 0) ? 1 : 0;
-                break;
-
-            case VerticesIdxOrganization::VGEO_VNORMAL:
-                bufferPtrIdx = (bufferPtrIdx == 0) ? 2 : 0;
-                break;
-
-            case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL:
-                bufferPtrIdx = (bufferPtrIdx < 2) ? ++bufferPtrIdx : 0;
-                break;
-
-            default: break;
-            }
-
-            vtxIdx = buffersPtrs[bufferPtrIdx] + vtxIdx + 1;
-        }
-
-        // Skip slashes and already converted values.
-        {
-            uint8_t charsToRemove = 0;
-
-            if (faceArgs[pos] == '/')
-            {
-                charsToRemove = 1;
-                if (faceArgs[pos + 1] == '/')
-                {
-                    charsToRemove = 2;
-                }
-            }
-
-            faceArgs.remove_prefix(pos + charsToRemove);
-        }
-
-        m_objDB.insertIndex(vtxIdx);
-        ++idxCount;
+        return;
     }
 
-    OBJASSERT(idxCount <= 12, "Face has too many vertices indices");
+    const size_t indexBufferOldSize = m_objDB.getIndexBufferCount();
+    for (const std::string_view& part : parts)
+    {
+        const int64_t vtxIdx = std::stol(part.data());
+        m_objDB.insertIndex(vtxIdx);
+    }
+    const size_t indexBufferNewSize = m_objDB.getIndexBufferCount();
 
-    ObjEntityFace objFace(m_objDB.getIndexBufferCount() - idxCount, idxCount, *vtxIdxOrg);
-    m_objDB.insertEntity(objFace, m_currentGroupsIdx);
+    m_objDB.insertEntity(ObjEntityFace(indexBufferOldSize, indexBufferNewSize - 1, *vtxIdxOrg));
 }
 
 // =================================================================================================
@@ -326,32 +302,81 @@ void ObjFileParser::parseGroup(const ElemIDResult_t& elementIDRes)
 {
     OBJLOG("Parsing a Group");
 
+    // Set the last included entity index for all the previous active groups
+    // before parsing new ones.
+    endCurrentGroupsEntitiesRanges();
+
+    // Clear the list of previous active groups in order to receive the new ones.
+    m_currentGroups.clear();
+
     auto [grpType, grpArgs] = elementIDRes;
 
-    // std::vector<std::string_view> vec = ObjUtils::StringUtils::splitString(grpArgs);
-
-    if (grpType == ElementType::GROUP_NAME || grpType == ElementType::OBJECT_NAME)
+    switch (const size_t entityTableIdx = m_objDB.getEntitiesCount(); grpType)
     {
-        // Only a group name points to an entity index.
-        const size_t entityTableIdx = (grpType == ElementType::GROUP_NAME) ?
-                                          m_objDB.getEntitiesCount() :
-                                          0;
-        ObjGroup grp(grpArgs, entityTableIdx, grpType);
-        m_objDB.insertGroup(grp);
-
-        // Store this Obj group's index in the current Groups buffer.
-        (grpType == ElementType::GROUP_NAME) ?
-            m_currentGroupsIdx[0] = m_objDB.getGroupsCount() - 1 :
-            m_currentGroupsIdx[1] = m_objDB.getGroupsCount() - 1;
+    case ElementType::GROUP_NAME:
+    {
+        const std::vector<std::string_view> grpNames = ObjUtils::StringUtils::splitString(grpArgs);
+        for (const std::string_view& grpName : grpNames)
+        {
+            m_currentGroups.push_back(
+                m_objDB.insertEntity(ObjEntityGroup{grpType, entityTableIdx, grpName}));
+        }
     }
-    else if ((grpType == ElementType::SMOOTHING_GROUP) && (grpArgs != "off" && grpArgs != "0"))
+    break;
+
+    case ElementType::OBJECT_NAME:
     {
-        const size_t groupNum = std::stol(grpArgs.data());
+        m_objDB.insertEntity(ObjEntityGroup{grpType, entityTableIdx, grpArgs});
+    }
+    break;
 
-        ObjGroup grp(groupNum, m_objDB.getEntitiesCount(), 0, grpType);
-        m_objDB.insertGroup(grp);
+    case ElementType::SMOOTHING_GROUP:
+    {
+        if (grpArgs != "off" && grpArgs != "0")
+        {
+            const size_t groupNum = std::stol(grpArgs.data());
 
-        // Store this Obj group's index in the current Groups buffer.
-        m_currentGroupsIdx[2] = m_objDB.getGroupsCount() - 1;
+            m_currentGroups.push_back(
+                m_objDB.insertEntity(ObjEntityGroup{grpType, entityTableIdx, groupNum}));
+        }
+    }
+    break;
+
+    case ElementType::MERGING_GROUP:
+    {
+        if (grpArgs != "off" && grpArgs != "0")
+        {
+            const std::vector<std::string_view> grpNbrAndRes = ObjUtils::StringUtils::splitString(
+                grpArgs);
+
+            const size_t groupNum = std::stol(grpNbrAndRes[0].data());
+
+            uint32_t resolution = 0;
+            if (grpNbrAndRes.size() > 1)
+            {
+                resolution = std::stol(grpNbrAndRes[1].data());
+            }
+
+            m_currentGroups.push_back(m_objDB.insertEntity(
+                ObjEntityGroup{grpType, entityTableIdx, groupNum, resolution}));
+        }
+    }
+    break;
+
+    default: OBJASSERT(false, "Unknown groupe type");
+    };
+}
+
+// =================================================================================================
+
+void ObjFileParser::endCurrentGroupsEntitiesRanges()
+{
+    for (size_t grpIdx : m_currentGroups)
+    {
+        std::optional<std::reference_wrapper<ObjEntityGroup>> grpOpt = m_objDB.getGroup(grpIdx);
+        OBJASSERT(grpOpt.has_value() == true, "Invalid group index");
+
+        ObjEntityGroup& grp = *grpOpt;
+        grp.endIncludedEntityRange(m_objDB.getEntitiesCount() - 1);
     }
 }

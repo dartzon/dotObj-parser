@@ -32,26 +32,29 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+#include <map>
 #include <unordered_map>
 #include <string>
 #include <string_view>
 
 // Represents a 2D/3D coordinates.
-struct Coordinates3D;
-using Vertex_t = Coordinates3D;
+struct Coordinates;
+
+struct ObjEntityVertex;
+using Vertex_t = ObjEntityVertex;
 
 // Vertices buffer type.
-using VertexBuffer_t = std::vector<Vertex_t>;
+using VertexBuffer_t = std::array<std::vector<Vertex_t>, 4>;
 // Vertices textures U/V buffer type.
 using TextureUVBuffer_t = std::vector<Vertex_t>;
 // Vertices normals buffer type.
 using NormalBuffer_t = std::vector<Vertex_t>;
 
 // List of vertices.
-using VerticesRefList_t = std::vector<const Vertex_t*>;
+using VerticesRefList_t = std::vector<std::reference_wrapper<const Vertex_t>>;
 using IndexBuffer_t = std::vector<size_t>;
 using IndexBufferRange_t = std::pair<size_t, size_t>;
-using IndexBufferRefRange_t =
+using IndexBufferRangeIterators_t =
     std::pair<IndexBuffer_t::const_iterator, IndexBuffer_t::const_iterator>;
 
 // List of Obj entities.
@@ -73,15 +76,19 @@ using RStringIterator_t = std::string::reverse_iterator;
 // Since C++11 std::string is contiguous in memory, it's safe to create one from &*iterator.
 using ElemIDResult_t = std::pair<ElementType, std::string_view>;  // TODO: Change this type's name.
 
+using EntitiesRefList_t = std::vector<std::reference_wrapper<const ObjEntity>>;
+
 /* ============================================================================================== */
 
 /// \brief Standard 3-dimensional coordinates.
-struct Coordinates3D
+enum class ElementType : uint8_t;
+struct Coordinates
 {
     float m_x = 0.0f;
     float m_y = 0.0f;
     float m_z = 0.0f;
     float m_w = 1.0f;  ///< Weight for rational curves and surfaces.
+    ElementType m_type;
 };
 
 /* ============================================================================================== */

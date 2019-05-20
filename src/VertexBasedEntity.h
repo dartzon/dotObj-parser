@@ -1,4 +1,6 @@
-/// Copyright (c) 2017 - present    Othmane AIT EL CADI <dartzon@gmail.com>
+/// MIT License
+///
+/// Copyright (c) 2017 Othmane AIT EL CADI
 ///
 /// Permission is hereby granted, free of charge, to any person obtaining a copy
 /// of this software and associated documentation files (the "Software"), to deal
@@ -18,62 +20,62 @@
 /// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 /// SOFTWARE.
 
-/// \file      WithVerticesIndices.h
+/// \file      VertexBasedEntity.h
 ///
 /// \brief     Obj entity with vertices indices. Any Obj entity with vertices indices such as
 ///            (face), should inherit from this class.
 ///
 /// \author    Othmane AIT EL CADI - <dartzon@gmail.com>
-/// \date      08-11-2017
+/// \date      12-04-2019
 
-#ifndef WITHVERTICESINDICES_H_
-#define WITHVERTICESINDICES_H_
+#ifndef VERTEXBASEDENTITY_H_
+#define VERTEXBASEDENTITY_H_
 
 #include "Types.h"
 
 /// \brief Obj entity with vertices indices.
-class WithVerticesIndices
+class VertexBasedEntity
 {
 public:
     /// \brief  Constructor.
     ///
-    /// \param  indexBufferIdx Index of the first vertex index.
-    /// \param  indicesOffset Count of vertices indices.
-    /// \param  eParamsOrganization Vertices indices layout.
-    WithVerticesIndices(const size_t indexBufferIdx,
-                        const size_t indicesOffset,
-                        const VerticesIdxOrganization eParamsOrganization) :
-        m_indexBufferIdx(indexBufferIdx),
-        m_indicesOffset(indicesOffset), m_eParamsOrganization(eParamsOrganization)
+    /// \param  firstIdx First vertex index.
+    /// \param  lastIdx Last vertex index.
+    /// \param  eVtxIdxOrganization Vertices indices layout.
+    VertexBasedEntity(const size_t firstIdx,
+                      const size_t lastIdx,
+                      const VerticesIdxOrganization eVtxIdxOrganization) :
+        m_firstIdx(firstIdx),
+        m_lastIdx(lastIdx), m_eVtxIdxOrganization(eVtxIdxOrganization)
     {
     }
 
+    /// \brief  Default copy constructor.
+    VertexBasedEntity(const VertexBasedEntity&) = default;
+
     /// \brief  Default move constructor.
-    WithVerticesIndices(WithVerticesIndices&&) noexcept = default;
+    VertexBasedEntity(VertexBasedEntity&&) noexcept = default;
 
     /// \brief  Returns a pair representing a range of vertices indices.
     ///
     /// \return Pair of vertices indices [start, end].
     IndexBufferRange_t getVerticesIndicesRange() const
     {
-        return std::make_pair(m_indexBufferIdx, m_indicesOffset);
+        return std::make_pair(m_firstIdx, m_lastIdx);
     }
 
     // Accessors ===================================================================================
 
-    inline size_t getIndexBufferStart() const { return m_indexBufferIdx; }
-    inline size_t getIndicesCount() const { return m_indicesOffset; }
-    inline VerticesIdxOrganization getVerticesIndicesOrganization() const
-    {
-        return m_eParamsOrganization;
-    }
+    size_t getFirstVertexIndex() const { return m_firstIdx; }
+    size_t getLastVertexIndex() const { return m_lastIdx; }
+    VerticesIdxOrganization getVerticesIndicesOrganization() const { return m_eVtxIdxOrganization; }
 
 private:
     // Members =====================================================================================
 
-    size_t m_indexBufferIdx;                        ///< Start index in the index buffer.
-    size_t m_indicesOffset;                         ///< Count of indices for this face.
-    VerticesIdxOrganization m_eParamsOrganization;  ///< Describes how indices are organized.
+    size_t m_firstIdx;                              ///< First index in the index buffer.
+    size_t m_lastIdx;                               ///< Last index in the index buffer.
+    VerticesIdxOrganization m_eVtxIdxOrganization;  ///< Describes how indices are organized.
 };
 
-#endif /* WITHVERTICESINDICES_H_ */
+#endif /* VERTEXBASEDENTITY_H_ */

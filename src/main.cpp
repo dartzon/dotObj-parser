@@ -25,9 +25,8 @@
 
 #include "Utils.h"
 #include "Types.h"
-#include "ObjGroup.h"
+#include "ObjEntityGroup.h"
 #include "ObjEntity.h"
-#include "WithVerticesIndices.h"
 #include "ObjEntityFace.h"
 #include "ObjDatabase.h"
 #include "ObjFileParser.h"
@@ -39,11 +38,15 @@
 int main(int argc, char* argv[])
 {
     namespace fs = std::filesystem;
-    fs::path objFilePath("/home/dartzon/Dev-Workspace/DotObj/tests/models/ducky.obj");
+    fs::path objFilePath(
+        "/home/dartzon/Dev-Workspace/DotObj/tests/models/Aircraft_Carrier/Liaoning.obj");
+
     if (argc > 1)
     {
         objFilePath = argv[1];
     }
+
+    const std::string fileName = objFilePath;
 
     float scale = 1.0f;
     if (argc > 2)
@@ -62,66 +65,184 @@ int main(int argc, char* argv[])
     const std::unique_ptr<std::FILE, decltype(&fclose)> smtObjFile(fopen(pOutJSFile, "w"), &fclose);
 
     fprintf(smtObjFile.get(),
+            "// Obj file: %s\n\n"
             "function renderObjFile()\n{\n"
-            "var geometry = new THREE.Geometry();\n"
-            "var normal = null;\nvar color = new THREE.Color( 0xffaa00 );"
-            "\nvar materialIndex = 0;\nvar face;\n");
+            "var material = new THREE.MeshStandardMaterial( { color : 0x00cc00 } );\n"
+            "var color_triangle = new THREE.Color( 0xffaa00 );\n"
+            "var color_quad = new THREE.Color( 0xe21aee );\n"
+            "\nvar materialIndex = 0;\n"
+            "\nvar geometry = new THREE.Geometry();\n"
+            "geometry.vertices = [\n",
+            fileName.c_str());
 
-    std::for_each(
-        vertexCBegin(objDB), vertexCEnd(objDB), [&smtObjFile, scale](const Vertex_t& vtx) {
-            const char* cmd = "geometry.vertices.push( new THREE.Vector3("
-                              "%f, %f, %f) );\n";
+    // =================================================================================================
+    // Create Vertices buffers.
+    // =================================================================================================
 
-            fprintf(smtObjFile.get(), cmd, vtx.m_x * scale, vtx.m_y * scale, vtx.m_z * scale);
-        });
+    std::string vertexBuffer;
+    vertexBuffer.reserve(objDB.getVerticesCount() * (30 + 7));
+    std::for_each(cbegin<ElementType::VERTEX>(objDB),
+                  cend<ElementType::VERTEX>(objDB),
+                  [scale, &vertexBuffer](const Vertex_t& vtx) {
+                      vertexBuffer += "\tnew THREE.Vector3(";
+                      vertexBuffer += std::to_string(vtx.m_x * scale);
+                      vertexBuffer += ',';
+                      vertexBuffer += std::to_string(vtx.m_y * scale);
+                      vertexBuffer += ',';
+                      vertexBuffer += std::to_string(vtx.m_z * scale);
+                      vertexBuffer += "),\n";
+                  });
 
-    for (const ObjEntityFace& fc : objDB)
-    {
-        IndexBufferRefRange_t idxBufRefR = objDB.getVerticesIndicesList(fc);
+    vertexBuffer[vertexBuffer.size() - 2] = '\n';
+    vertexBuffer.back() = ']';
+    fprintf(smtObjFile.get(), "%s;\n", vertexBuffer.c_str());
 
-        const VerticesIdxOrganization vtxIdxOrg = fc.getVerticesIndicesOrganization();
-        uint8_t step = 1;
+    // =================================================================================================
+    // Create Faces.
+    // =================================================================================================
+
+    std::string faceBuffer("geometry.faces = [\n");
+
+    auto cycleVerticesType = [](const VerticesIdxOrganization vtxIdxOrg, ElementType& vtxType) {
         switch (vtxIdxOrg)
         {
-        case VerticesIdxOrganization::VGEO: step = 1; break;
-
         case VerticesIdxOrganization::VGEO_VNORMAL:
-        case VerticesIdxOrganization::VGEO_VTEXTURE: step = 2; break;
+            vtxType = (vtxType == ElementType::VERTEX) ? ElementType::VERTEX_NORMAL :
+                                                         ElementType::VERTEX;
+            break;
 
-        case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL: step = 3; break;
+        case VerticesIdxOrganization::VGEO_VTEXTURE:
+            vtxType = (vtxType == ElementType::VERTEX) ? ElementType::VERTEX_TEXTURE :
+                                                         ElementType::VERTEX;
+            break;
 
+        case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL:
+            if (vtxType == ElementType::VERTEX)
+            {
+                vtxType = ElementType::VERTEX_TEXTURE;
+            }
+            else if (vtxType == ElementType::VERTEX_TEXTURE)
+            {
+                vtxType = ElementType::VERTEX_NORMAL;
+            }
+            else
+            {
+                vtxType = ElementType::VERTEX;
+            }
+            break;
+
+        case VerticesIdxOrganization::VGEO:
         default: break;
         }
 
-        if (fc.isTriangle() == true)
-        {
-            const char* faceCmd = "face = new THREE.Face3( %lu, %lu, %lu, normal, color, "
-                                  "materialIndex );\n"
-                                  "geometry.faces.push( face );\n";
+        return vtxType;
+    };
 
-            fprintf(smtObjFile.get(),
-                    faceCmd,
-                    (*idxBufRefR.first) - 1,
-                    *(idxBufRefR.first + step) - 1,
-                    *(idxBufRefR.first + (step * 2)) - 1);
-        }
-        else
-        {
-            const char* faceCmd = "face = new THREE.Face3( %lu, %lu, %lu,"
-                                  " normal, color, materialIndex );\n"
-                                  "geometry.faces.push( face );\n";
+    std::vector<size_t> vtxBuffer;
+    std::vector<size_t> normalBuffer;
 
-            const size_t v1 = (*idxBufRefR.first) - 1;
-            const size_t v2 = *(idxBufRefR.first + step) - 1;
-            const size_t v3 = *(idxBufRefR.first + (step * 2)) - 1;
-            const size_t v4 = *(idxBufRefR.first + (step * 3)) - 1;
+    std::for_each(
+        cbegin<ElementType::FACE>(objDB),
+        cend<ElementType::FACE>(objDB),
+        [&objDB, &faceBuffer, &vtxBuffer, &normalBuffer, &cycleVerticesType](
+            const ObjEntityFace& face) {
+            IndexBufferRangeIterators_t idxBufRefR = objDB.getVerticesIterators(face);
+            ElementType vertexType = ElementType::VERTEX;
 
-            fprintf(smtObjFile.get(), faceCmd, v1, v2, v3);
+            std::for_each(idxBufRefR.first,
+                          idxBufRefR.second,
+                          [&face, &vtxBuffer, &normalBuffer, &vertexType, &cycleVerticesType](
+                              const size_t idx) {
+                              switch (vertexType)
+                              {
+                              case ElementType::VERTEX: vtxBuffer.push_back(idx - 1); break;
 
-            fprintf(smtObjFile.get(), faceCmd, v1, v3, v4);
-        }
-    }
+                              case ElementType::VERTEX_TEXTURE: break;
 
+                              case ElementType::VERTEX_NORMAL:
+                                  normalBuffer.push_back(idx - 1);
+                                  break;
+
+                              default: break;
+                              }
+
+                              vertexType = cycleVerticesType(face.getVerticesIndicesOrganization(),
+                                                             vertexType);
+                          });
+
+            for (size_t vtxIdx = 0; vtxIdx < vtxBuffer.size() - 2; ++vtxIdx)
+            {
+                faceBuffer += "\tnew THREE.Face3(";
+                faceBuffer += std::to_string(vtxBuffer[0]);
+                faceBuffer += ',';
+                faceBuffer += std::to_string(vtxBuffer[vtxIdx + 1]);
+                faceBuffer += ',';
+                faceBuffer += std::to_string(vtxBuffer[vtxIdx + 2]);
+                faceBuffer += ',';
+
+                if (normalBuffer.empty() == true)
+                {
+                    faceBuffer += " null, ";
+                }
+                else
+                {
+                    auto vtxNormal1 = objDB.getVertex(ElementType::VERTEX_NORMAL, normalBuffer[0]);
+                    auto vtxNormal2 = objDB.getVertex(ElementType::VERTEX_NORMAL,
+                                                      normalBuffer[vtxIdx + 1]);
+                    auto vtxNormal3 = objDB.getVertex(ElementType::VERTEX_NORMAL,
+                                                      normalBuffer[vtxIdx + 2]);
+
+                    faceBuffer += "[\n";
+
+                    {
+                        auto [x, y, z, w] = (*vtxNormal1).get();
+                        faceBuffer += " new THREE.Vector3(";
+                        faceBuffer += std::to_string(x);
+                        faceBuffer += ',';
+                        faceBuffer += std::to_string(y);
+                        faceBuffer += ',';
+                        faceBuffer += std::to_string(z);
+                        faceBuffer += ')';
+                        faceBuffer += ',';
+                    }
+
+                    {
+                        auto [x, y, z, w] = (*vtxNormal2).get();
+                        faceBuffer += " new THREE.Vector3(";
+                        faceBuffer += std::to_string(x);
+                        faceBuffer += ',';
+                        faceBuffer += std::to_string(y);
+                        faceBuffer += ',';
+                        faceBuffer += std::to_string(z);
+                        faceBuffer += ')';
+                        faceBuffer += ',';
+                    }
+
+                    {
+                        auto [x, y, z, w] = (*vtxNormal3).get();
+                        faceBuffer += " new THREE.Vector3(";
+                        faceBuffer += std::to_string(x);
+                        faceBuffer += ',';
+                        faceBuffer += std::to_string(y);
+                        faceBuffer += ',';
+                        faceBuffer += std::to_string(z);
+                        faceBuffer += ')';
+                    }
+
+                    faceBuffer += ']';
+                    faceBuffer += ',';
+                }
+
+                faceBuffer += " color_triangle, materialIndex),\n";
+            }
+
+            vtxBuffer.clear();
+            normalBuffer.clear();
+        });
+
+    faceBuffer[faceBuffer.size() - 2] = '\n';
+    faceBuffer.back() = ']';
+    fprintf(smtObjFile.get(), "%s;\n/* geometry.computeFaceNormals(); */\n", faceBuffer.c_str());
     fprintf(smtObjFile.get(), "\n\nreturn geometry;\n}\n");
 
     return 0;

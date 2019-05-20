@@ -28,154 +28,72 @@
 #include "Utils.h"
 #include <algorithm>
 
-void ObjDatabase::insertVertex(const Vertex_t& vtx, const ElementType eVtxType)
+VerticesRefList_t ObjDatabase::getVerticesList(const VertexBasedEntity& elemWithVertices) const
 {
-    switch (eVtxType)
-    {
-    case ElementType::VERTEX: m_VBuffer.push_back(vtx); break;
-    case ElementType::VERTEX_TEXTURE: m_TexUVBuffer.push_back(vtx); break;
-    case ElementType::VERTEX_NORMAL: m_NormalBuffer.push_back(vtx); break;
-
-    default: break;
-    }
-}
-
-// =================================================================================================
-
-VerticesRefList_t ObjDatabase::getVerticesList(const WithVerticesIndices& elemWithVertices) const
-{
+    const auto [rangeBegin, rangeEnd] = elemWithVertices.getVerticesIndicesRange();
     const VerticesIdxOrganization vtxIdxOrg = elemWithVertices.getVerticesIndicesOrganization();
-    const IndexBufferRange_t vtxIdxRange = elemWithVertices.getVerticesIndicesRange();
 
-    const std::array<const VertexBuffer_t*, 3> buffersPtrs = {&m_VBuffer,
-                                                              &m_TexUVBuffer,
-                                                              &m_NormalBuffer};
-    uint8_t bufferPtrIdx = 0;
-    VerticesRefList_t verticesRefList;
+    VerticesRefList_t vtxList;
 
-    std::for_each(m_IdxBuffer.cbegin() + vtxIdxRange.first,
-                  m_IdxBuffer.cbegin() + vtxIdxRange.first + vtxIdxRange.second,
-                  [vtxIdxOrg, &buffersPtrs, &bufferPtrIdx, &verticesRefList](const size_t& idxVtx) {
-                      const VertexBuffer_t* pCurrentBuff = buffersPtrs[bufferPtrIdx];
-                      ;
+    std::for_each(m_IdxBuffer.cbegin() + rangeBegin,
+                  m_IdxBuffer.cbegin() + rangeBegin + rangeEnd,
+                  [this, vtxIdxOrg, &vtxList](const size_t vtxIdx) {
+                      constexpr uint8_t vtxBuffIdx = 0, vtxTextureIdx = 1, vtxNormalIdx = 2;
 
                       switch (vtxIdxOrg)
                       {
+                      case VerticesIdxOrganization::VGEO:
+                          vtxList.push_back(m_vertexBuffer[vtxBuffIdx][vtxIdx]);
+                          break;
                       case VerticesIdxOrganization::VGEO_VTEXTURE:
-                          bufferPtrIdx = (bufferPtrIdx == 0) ? 1 : 0;
+                          vtxList.push_back(m_vertexBuffer[vtxBuffIdx][vtxIdx]);
+                          vtxList.push_back(m_vertexBuffer[vtxTextureIdx][vtxIdx]);
                           break;
-
                       case VerticesIdxOrganization::VGEO_VNORMAL:
-                          bufferPtrIdx = (bufferPtrIdx == 0) ? 2 : 0;
+                          vtxList.push_back(m_vertexBuffer[vtxBuffIdx][vtxIdx]);
+                          vtxList.push_back(m_vertexBuffer[vtxNormalIdx][vtxIdx]);
                           break;
-
                       case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL:
-                          bufferPtrIdx = (bufferPtrIdx < 2) ? ++bufferPtrIdx : 0;
+                          vtxList.push_back(m_vertexBuffer[vtxBuffIdx][vtxIdx]);
+                          vtxList.push_back(m_vertexBuffer[vtxTextureIdx][vtxIdx]);
+                          vtxList.push_back(m_vertexBuffer[vtxNormalIdx][vtxIdx]);
                           break;
-
-                      default: break;
                       }
-
-                      verticesRefList.push_back(&(*pCurrentBuff)[idxVtx - 1]);
                   });
 
-    return verticesRefList;
+    return vtxList;
 }
 
 // =================================================================================================
 
-IndexBufferRefRange_t
-ObjDatabase::getVerticesIndicesList(const WithVerticesIndices& elemWithVertices) const
+IndexBufferRangeIterators_t
+ObjDatabase::getVerticesIterators(const VertexBasedEntity& elemWithVertices) const
 {
     const IndexBufferRange_t vtxIdxRange = elemWithVertices.getVerticesIndicesRange();
 
     return std::make_pair(m_IdxBuffer.cbegin() + vtxIdxRange.first,
-                          m_IdxBuffer.cbegin() + vtxIdxRange.first + vtxIdxRange.second);
+                          m_IdxBuffer.cbegin() + vtxIdxRange.second + 1);
 }
 
 // =================================================================================================
 
-FacesRefRange_t ObjDatabase::getEntitiesInGroup(const ObjGroup& group) const
+EntitiesRefList_t ObjDatabase::getEntitiesInGroup(const ObjEntityGroup& group) const
 {
-    const EntitiesIndexRange_t entIdxRange = group.getEntitiesIndicesRange();
+    const std::vector<EntitiesIndexRange_t>& entIdxRange = group.getEntitiesIndicesRange();
 
-    return std::make_pair(m_facesTable.cbegin() + entIdxRange.first,
-                          m_facesTable.cbegin() + entIdxRange.first + entIdxRange.second);
-}
+    EntitiesRefList_t includedEntities;
 
-// =================================================================================================
+    std::for_each(entIdxRange.cbegin(),
+                  entIdxRange.cend(),
+                  [this, &includedEntities](const EntitiesIndexRange_t& range) {
+                      const auto [begin, end] = range;
 
-void ObjDatabase::insertEntity(ObjEntity& obj, const std::array<int64_t, 3>& currentGroupsIdx)
-{
-    // Insert the Obj entity in its proper container.
-    switch (obj.getType())
-    {
-    case ElementType::FACE:
-        obj.setID(m_facesTable.size() + 1);
-        m_facesTable.push_back(static_cast<ObjEntityFace&&>(obj));
-        // Increment entities count.
-        ++m_totalEntitiesCount;
-        break;
+                      includedEntities.reserve(end - begin + 1);
 
-    default: break;
-    };
+                      std::copy(m_allEntitiesTable.cbegin() + begin,
+                                m_allEntitiesTable.cend() + begin + end,
+                                std::back_inserter(includedEntities));
+                  });
 
-    // Update the count of included Obj entities for each current Obj group.
-    std::for_each(currentGroupsIdx.cbegin(), currentGroupsIdx.cend(), [this](const int64_t idx) {
-        if (idx >= 0)
-        {
-            ++m_groupTable[idx];
-        }
-    });
-}
-
-// Iterators free functions ========================================================================
-ObjDatabase::VertexIterator vertexBegin(ObjDatabase& db) noexcept
-{
-    return db.m_VBuffer.begin();
-}
-ObjDatabase::VertexIterator vertexEnd(ObjDatabase& db) noexcept
-{
-    return db.m_VBuffer.end();
-}
-ObjDatabase::VertexConstIterator vertexBegin(const ObjDatabase& db) noexcept
-{
-    return db.m_VBuffer.cbegin();
-}
-ObjDatabase::VertexConstIterator vertexEnd(const ObjDatabase& db) noexcept
-{
-    return db.m_VBuffer.cend();
-}
-ObjDatabase::VertexConstIterator vertexCBegin(const ObjDatabase& db) noexcept
-{
-    return db.m_VBuffer.cbegin();
-}
-ObjDatabase::VertexConstIterator vertexCEnd(const ObjDatabase& db) noexcept
-{
-    return db.m_VBuffer.cend();
-}
-
-ObjDatabase::GroupsIterator groupBegin(ObjDatabase& db) noexcept
-{
-    return db.m_groupTable.begin();
-}
-ObjDatabase::GroupsIterator groupEnd(ObjDatabase& db) noexcept
-{
-    return db.m_groupTable.end();
-}
-ObjDatabase::GroupsConstIterator groupBegin(const ObjDatabase& db) noexcept
-{
-    return db.m_groupTable.cbegin();
-}
-ObjDatabase::GroupsConstIterator groupEnd(const ObjDatabase& db) noexcept
-{
-    return db.m_groupTable.cend();
-}
-ObjDatabase::GroupsConstIterator groupCBegin(const ObjDatabase& db) noexcept
-{
-    return db.m_groupTable.cbegin();
-}
-ObjDatabase::GroupsConstIterator groupCEnd(const ObjDatabase& db) noexcept
-{
-    return db.m_groupTable.cend();
+    return includedEntities;
 }

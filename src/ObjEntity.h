@@ -37,13 +37,23 @@ class ObjDatabase;
 class ObjEntity
 {
 public:
-    ///  \brief  Constructor.
+    /// \brief Constructor.
     ///
-    ///  \param  entityType Type of the entity.
+    /// \param entityType Type of the entity.
     explicit ObjEntity(const ElementType entityType) : m_ID(0), m_type(entityType) {}
 
-    ///  \brief  Default move constructor.
+    /// \brief Default copy constructor.
+    ObjEntity(const ObjEntity&) = default;
+
+    /// \brief Default move constructor.
     ObjEntity(ObjEntity&&) noexcept = default;
+
+    /// \brief Default destructor.
+    virtual ~ObjEntity() noexcept = default;
+
+    // Operators ===================================================================================
+
+    virtual bool operator==(const ObjEntity& other) const { return (m_ID == other.m_ID); }
 
     // Accessors ===================================================================================
 

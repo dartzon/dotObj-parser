@@ -27,6 +27,7 @@
 #include "Types.h"
 
 #include <algorithm>
+#include <functional>
 
 namespace ObjUtils
 {
@@ -74,17 +75,29 @@ std::string_view& StringUtils::removeSurroundingBlanks(std::string_view& str)
 
 // =================================================================================================
 
-std::vector<std::string_view> StringUtils::splitString(const std::string& str)
+std::vector<std::string_view>
+StringUtils::splitString(const std::string& str, const std::initializer_list<const char> delimiters)
 {
-    auto startItr = str.cbegin();
-    auto freeItr = startItr;
+    std::function delimiterCheck(&isblank);
+    if (delimiters.size() > 0)
+    {
+        delimiterCheck = [&delimiters](const auto chr) {
+            return (isblank(chr) != 0) ||
+                   (std::find(delimiters.begin(), delimiters.end(), chr) != delimiters.end());
+        };
+    }
 
+    auto startItr = str.cbegin();
+    auto splitItr = startItr;
     std::vector<std::string_view> subStrings;
 
-    while ((freeItr = std::find_if(startItr, str.cend(), &isblank)) != str.cend())
+    while ((splitItr = std::find_if(startItr, str.cend(), delimiterCheck)) != str.cend())
     {
-        subStrings.push_back(std::string_view(&*startItr, std::distance(startItr, freeItr)));
-        startItr = freeItr + 1;
+        if (delimiterCheck(*startItr) == false)
+        {
+            subStrings.push_back(std::string_view(&*startItr, std::distance(startItr, splitItr)));
+        }
+        startItr = splitItr + 1;
     }
 
     if (startItr != str.cend())
@@ -97,17 +110,29 @@ std::vector<std::string_view> StringUtils::splitString(const std::string& str)
 
 // =================================================================================================
 
-std::vector<std::string_view> StringUtils::splitString(std::string_view str)
+std::vector<std::string_view>
+StringUtils::splitString(std::string_view str, const std::initializer_list<const char> delimiters)
 {
-    auto startItr = str.cbegin();
-    auto freeItr = startItr;
+    std::function delimiterCheck(&isblank);
+    if (delimiters.size() > 0)
+    {
+        delimiterCheck = [&delimiters](const auto chr) {
+            return (isblank(chr) != 0) ||
+                   (std::find(delimiters.begin(), delimiters.end(), chr) != delimiters.end());
+        };
+    }
 
+    auto startItr = str.cbegin();
+    auto splitItr = startItr;
     std::vector<std::string_view> subStrings;
 
-    while ((freeItr = std::find_if(startItr, str.cend(), &isblank)) != str.cend())
+    while ((splitItr = std::find_if(startItr, str.cend(), delimiterCheck)) != str.cend())
     {
-        subStrings.push_back(std::string_view(&*startItr, std::distance(startItr, freeItr)));
-        startItr = freeItr + 1;
+        if (delimiterCheck(*startItr) == false)
+        {
+            subStrings.push_back(std::string_view(&*startItr, std::distance(startItr, splitItr)));
+        }
+        startItr = splitItr + 1;
     }
 
     if (startItr != str.cend())

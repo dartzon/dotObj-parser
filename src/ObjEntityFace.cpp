@@ -25,22 +25,14 @@
 
 #include "ObjEntityFace.h"
 
-ObjEntityFace::ObjEntityFace(const size_t indexBufferIdx,
-                             const size_t indicesOffset,
-                             const VerticesIdxOrganization eParamsOrganization) :
+ObjEntityFace::ObjEntityFace(const size_t firstIdx,
+                             const size_t lastIdx,
+                             const VerticesIdxOrganization eVtxIdxOrganization) :
     ObjEntity(ElementType::FACE),
-    WithVerticesIndices(indexBufferIdx, indicesOffset, eParamsOrganization)
+    VertexBasedEntity(firstIdx, lastIdx, eVtxIdxOrganization)
 {
-    // Determine if this face is a triangle.
-    switch (eParamsOrganization)
-    {
-    case VerticesIdxOrganization::VGEO: m_isTriangle = (indicesOffset == 3); break;
-
-    case VerticesIdxOrganization::VGEO_VTEXTURE:
-    case VerticesIdxOrganization::VGEO_VNORMAL: m_isTriangle = (indicesOffset == 6); break;
-
-    case VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL: m_isTriangle = (indicesOffset == 9); break;
-
-    default: m_isTriangle = false;
-    };
+    m_isTriangle = (((lastIdx - firstIdx + 1) % 3) == 0);
+    m_hasTextureVertex = (eVtxIdxOrganization == VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL);
+    m_hasVertexNormal = (eVtxIdxOrganization == VerticesIdxOrganization::VGEO_VNORMAL) ||
+                        (eVtxIdxOrganization == VerticesIdxOrganization::VGEO_VTEXTURE_VNORMAL);
 }
