@@ -68,6 +68,7 @@ using RStringIterator_t = std::string::reverse_iterator;
 // Since C++11 std::string is contiguous in memory, it's safe to create one from &*iterator.
 using ElemIDResult_t = std::pair<ElementType, std::string_view>;  // TODO: Change this type's name.
 
+class ObjEntity;
 using EntitiesRefList_t = std::vector<std::reference_wrapper<const ObjEntity>>;
 
 /* ============================================================================================== */
