@@ -1,0 +1,73 @@
+# 3ds Max Wavefront OBJ Exporter v0.97b - (c)2007 guruware
+# File Created: 02.08.2017 09:41:17
+
+newmtl bell_47_Fuselage_T
+	Ns 10.0000
+	Ni 1.5000
+	d 1.0000
+	Tr 0.0000
+	Tf 1.0000 1.0000 1.0000 
+	illum 2
+	Ka 0.5882 0.5882 0.5882
+	Kd 0.5882 0.5882 0.5882
+	Ks 0.2250 0.2250 0.2250
+	Ke 0.0000 0.0000 0.0000
+	map_Ka C:\Users\lenovo\Desktop\Bell 407\Texture\Fuselage_T.bmp
+	map_Kd C:\Users\lenovo\Desktop\Bell 407\Texture\Fuselage_T.bmp
+
+newmtl bell_47_Fuselage_Tail_T
+	Ns 10.0000
+	Ni 1.5000
+	d 1.0000
+	Tr 0.0000
+	Tf 1.0000 1.0000 1.0000 
+	illum 2
+	Ka 0.5882 0.5882 0.5882
+	Kd 0.5882 0.5882 0.5882
+	Ks 0.2250 0.2250 0.2250
+	Ke 0.0000 0.0000 0.0000
+	map_Ka C:\Users\lenovo\Desktop\Bell 407\Texture\Fuselage_Tail_T.bmp
+	map_Kd C:\Users\lenovo\Desktop\Bell 407\Texture\Fuselage_Tail_T.bmp
+
+newmtl Bell_47_Glass
+	Ns 10.0000
+	Ni 1.5000
+	d 1.0000
+	Tr 0.0000
+	Tf 1.0000 1.0000 1.0000 
+	illum 2
+	Ka 0.5882 0.5882 0.5882
+	Kd 0.5882 0.5882 0.5882
+	Ks 1.0080 1.0080 1.0080
+	Ke 0.0000 0.0000 0.0000
+	map_Ka C:\Users\lenovo\Desktop\Bell 407\Texture\Bell 47 Glass.dds
+	map_Kd C:\Users\lenovo\Desktop\Bell 407\Texture\Bell 47 Glass.dds
+	map_d C:\Users\lenovo\Desktop\Bell 407\Texture\Bell 47 Glass.dds
+
+newmtl bell_47_interior
+	Ns 10.0000
+	Ni 1.5000
+	d 1.0000
+	Tr 0.0000
+	Tf 1.0000 1.0000 1.0000 
+	illum 2
+	Ka 0.5882 0.5882 0.5882
+	Kd 0.5882 0.5882 0.5882
+	Ks 0.2250 0.2250 0.2250
+	Ke 0.0000 0.0000 0.0000
+	map_Ka C:\Users\lenovo\Desktop\Bell 407\Texture\interior.bmp
+	map_Kd C:\Users\lenovo\Desktop\Bell 407\Texture\interior.bmp
+
+newmtl bell_47_2Misc_T_bmp
+	Ns 10.0000
+	Ni 1.5000
+	d 1.0000
+	Tr 0.0000
+	Tf 1.0000 1.0000 1.0000 
+	illum 2
+	Ka 0.5882 0.5882 0.5882
+	Kd 0.5882 0.5882 0.5882
+	Ks 0.2250 0.2250 0.2250
+	Ke 0.0000 0.0000 0.0000
+	map_Ka C:\Users\lenovo\Desktop\Bell 407\Texture\Misc_T.bmp
+	map_Kd C:\Users\lenovo\Desktop\Bell 407\Texture\Misc_T.bmp
