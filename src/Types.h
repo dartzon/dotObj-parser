@@ -45,10 +45,6 @@ using Vertex_t = ObjEntityVertex;
 
 // Vertices buffer type.
 using VertexBuffer_t = std::array<std::vector<Vertex_t>, 4>;
-// Vertices textures U/V buffer type.
-using TextureUVBuffer_t = std::vector<Vertex_t>;
-// Vertices normals buffer type.
-using NormalBuffer_t = std::vector<Vertex_t>;
 
 // List of vertices.
 using VerticesRefList_t = std::vector<std::reference_wrapper<const Vertex_t>>;
@@ -58,11 +54,7 @@ using IndexBufferRangeIterators_t =
     std::pair<IndexBuffer_t::const_iterator, IndexBuffer_t::const_iterator>;
 
 // List of Obj entities.
-class ObjEntity;
-using EntityRefList_t = std::vector<ObjEntity*>;
-using EntitiesIndexRange_t = IndexBufferRange_t;
-using EntitiesRefRange_t =
-    std::pair<EntityRefList_t::const_iterator, EntityRefList_t::const_iterator>;
+using EntitiesIndexRange_t = std::pair<size_t, size_t>;
 
 // Wavefront Obj keyword dictionary type.
 enum class ElementType : uint8_t;
@@ -80,7 +72,7 @@ using EntitiesRefList_t = std::vector<std::reference_wrapper<const ObjEntity>>;
 
 /* ============================================================================================== */
 
-/// \brief Standard 3-dimensional coordinates.
+/// \brief Standard coordinates.
 enum class ElementType : uint8_t;
 struct Coordinates
 {
@@ -92,6 +84,17 @@ struct Coordinates
 };
 
 /* ============================================================================================== */
+
+/// \brief Representation of a RGB color value.
+struct RGB
+{
+    float m_r = 0.0f;
+    float m_g = 0.0f;
+    float m_b = 0.0f;
+};
+
+/* ==============================================================================================
+ */
 
 ///  \brief .obj file's elements' types.
 enum class ElementType : uint8_t
