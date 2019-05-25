@@ -55,9 +55,27 @@ ObjDatabase ObjFileParser::parseFile()
             m_currentGroups.push_back(
                 m_objDB.insertEntity(ObjEntityGroup{ElementType::GROUP_NAME, 0, "default"}));
 
+            // Lambda that handles the case of multiple joind lines via the line continuation
+            // character (\).
+            auto handleLineContinuation = [&smtObjFile, &lineBuffer, &oneLine]() {
+                for (size_t nextLinePos = oneLine.rfind('\\'); nextLinePos != std::string::npos;)
+                {
+                    oneLine[nextLinePos] = ' ';
+                    if (fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
+                    {
+                        oneLine += lineBuffer;
+                    }
+
+                    nextLinePos = oneLine.rfind('\\');
+                }
+            };
+
             while (fgets(lineBuffer, lineBufferSize, smtObjFile.get()) != nullptr)
             {
                 oneLine = lineBuffer;
+
+                handleLineContinuation();
+
                 parseElement(oneLine);
             }
 
