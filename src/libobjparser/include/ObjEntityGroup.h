@@ -151,7 +151,7 @@ public:
     {
         size_t count = 0;
 
-        for (const auto [start, end] : m_includedEntities)
+        for (const auto& [start, end] : m_includedEntities)
         {
             count += end - start + 1;
         }

@@ -41,13 +41,27 @@ endif()
 
 
 ###############################################################################
+## libobjparser definitions.
+###############################################################################
+file(GLOB_RECURSE LIBOBJPARSER_SRC_LST ${PROJECT_SOURCE_DIR}/src/libobjparser/src/*.cpp)
+add_library(objparser_static STATIC ${LIBOBJPARSER_SRC_LST})
+target_compile_options(objparser_static PUBLIC $<$<CONFIG:DEBUG>:-DOBJ_DEBUG>)
+target_include_directories(objparser_static PUBLIC ${PROJECT_SOURCE_DIR}/src/libobjparser/include)
+target_link_libraries(objparser_static stdc++fs)
+
+add_library(objparser_shared SHARED ${LIBOBJPARSER_SRC_LST})
+target_compile_options(objparser_shared PUBLIC $<$<CONFIG:DEBUG>:-DOBJ_DEBUG>)
+target_include_directories(objparser_shared PUBLIC ${PROJECT_SOURCE_DIR}/src/libobjparser/include)
+target_link_libraries(objparser_shared stdc++fs)
+
+###############################################################################
 ## Target definitions.
 ###############################################################################
-file(GLOB_RECURSE PROJECT_SRC_LST ${PROJECT_SOURCE_DIR}/src/*.h ${PROJECT_SOURCE_DIR}/src/*.cpp)
-add_executable(objparser ${PROJECT_SRC_LST})
+file(GLOB_RECURSE EXEC_SRC_LST ${PROJECT_SOURCE_DIR}/src/*.cpp)
+add_executable(objparser ${EXEC_SRC_LST})
 target_compile_options(objparser PUBLIC $<$<CONFIG:DEBUG>:-DOBJ_DEBUG>)
-target_include_directories(objparser PUBLIC ${PROJECT_SOURCE_DIR}/src/)
-target_link_libraries(objparser stdc++fs)
+target_include_directories(objparser PUBLIC ${PROJECT_SOURCE_DIR}/src/ ${PROJECT_SOURCE_DIR}/src/libobjparser/include)
+target_link_libraries(objparser stdc++fs objparser_shared)
 
 ###############################################################################
 ## Unit test target.

@@ -35,6 +35,8 @@
 
 #include <algorithm>
 
+#include <cstdio>
+
 int main(int argc, char* argv[])
 {
     namespace fs = std::filesystem;
